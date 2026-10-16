@@ -1,0 +1,60 @@
+__pycache__/
+*.py[cod]
+.venv/
+data/
+output/
+frontend/node_modules/
+frontend/dist/
+chrome-win64
+runtime/
+*.zip
+build/
+dist/
+release/
+*.spec.bak
+build_log.txt
+
+# 环境变量与密钥（防止误提交）
+.env
+.env.*
+*.env
+!.env.example
+
+# 登录态与账号数据（含浏览器 Profile 里的真实 Cookie）
+credentials.json
+auth.json
+accounts.json
+settings.json
+generation_tasks.json
+accounts/
+profile/
+http_cookies.json
+cookies*.txt
+cookies*.json
+Cookies
+Cookies-journal
+Local State
+Login Data
+*sessionid*
+
+# 密钥材料与证书
+*.pem
+*.key
+*.p12
+*.pfx
+*.kdbx
+id_rsa
+id_ed25519
+
+# 数据库与日志文件（防止本地数据意外提交）
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# OS / 编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
