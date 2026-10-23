@@ -1177,6 +1177,7 @@ function applySixDimAudioFormulaToShot(shot, appearedRoles = new Set()) {
   if (!shot) return
   const currentPrompt = shot.prompt || ''
 
+  // 1. 提炼对白行
   let dialogueLines = []
   if (Array.isArray(shot.dialogue) && shot.dialogue.length) {
     dialogueLines = shot.dialogue
@@ -1187,29 +1188,7 @@ function applySixDimAudioFormulaToShot(shot, appearedRoles = new Set()) {
     }
   }
 
-  let sfxDesc = ''
-  if (shot.audio) {
-    if (Array.isArray(shot.audio)) {
-      sfxDesc = shot.audio.map(a => typeof a === 'string' ? a : (a?.desc || a?.prompt || a?.name || '')).filter(Boolean).join('，')
-    } else if (typeof shot.audio === 'string') {
-      sfxDesc = shot.audio.trim()
-    }
-  }
-  if (!sfxDesc) {
-    const sfxMatch = currentPrompt.match(/(?:环境音|音效|拟音)[：:]\s*([^\n]+)/)
-    if (sfxMatch) {
-      sfxDesc = sfxMatch[1].trim()
-    } else {
-      const visualMatch = currentPrompt.match(/(?:画面|提示词)[：:]\s*([^\n]+)/)
-      if (visualMatch) {
-        const soundClues = visualMatch[1].match(/(?:雨声|雷声|风声|脚步声|滴答声|碰撞声|钟声|摩擦声|水声|门声|倒水声|喘息声|杂音)/g)
-        if (soundClues && soundClues.length) {
-          sfxDesc = `环境伴随${Array.from(new Set(soundClues)).join('、')}`
-        }
-      }
-    }
-  }
-
+  // 2. 建立可用资产映射
   const assetMap = new Map()
   ;(assets.value || []).forEach(a => {
     if (a?.name) assetMap.set(String(a.name).trim().toLowerCase(), a)
@@ -1220,7 +1199,67 @@ function applySixDimAudioFormulaToShot(shot, appearedRoles = new Set()) {
     if (a?.id) assetMap.set(String(a.id).trim().toLowerCase(), a)
   })
 
+  // 3. 收集本镜中的角色：区分「有台词说话角色」与「在场但无台词角色」
+  const speakingRoles = new Set()
+  const referencedRoles = new Set()
+
+  if (dialogueLines.length) {
+    dialogueLines.forEach(line => {
+      let roleName = ''
+      if (typeof line === 'string') {
+        const m = line.match(/^([^\(（：:]+)/)
+        if (m) roleName = m[1].trim()
+      } else if (typeof line === 'object' && line) {
+        roleName = String(line.role || line.character || line.speaker || '').trim()
+      }
+      if (roleName) speakingRoles.add(roleName.toLowerCase())
+    })
+  }
+
+  // 扫描 shot.references 中的角色
+  ;(shot.references || []).forEach(ref => {
+    if (ref?.category === 'role' || String(ref?.id || '').startsWith('char_')) {
+      const rName = String(ref.name || ref.id || '').trim()
+      if (rName && !speakingRoles.has(rName.toLowerCase())) {
+        referencedRoles.add(rName)
+      }
+    }
+  })
+
+  // 扫描 prompt 中的「一致性引用：...」中的角色与音效标记
+  const refMatch = currentPrompt.match(/一致性引用[：:]\s*([^\n]+)/)
+  const referencedTokens = []
+  if (refMatch) {
+    const tokens = refMatch[1].split(/[，,、\s]+/).map(s => s.trim().replace(/^\{\{|\}\}$/g, '')).filter(Boolean)
+    tokens.forEach(t => {
+      referencedTokens.push(t)
+      const tKey = t.toLowerCase()
+      const found = assetMap.get(tKey) || (assets.value || []).find(a => a.id === t || a.name === t)
+      if (found && (found.category === 'role' || String(found.id || '').startsWith('char_'))) {
+        const rName = found.name || t
+        if (!speakingRoles.has(rName.toLowerCase())) referencedRoles.add(rName)
+      } else {
+        for (const [key, a] of assetMap.entries()) {
+          if (a.category === 'role' && (key === tKey || a.name === t)) {
+            if (!speakingRoles.has(a.name.toLowerCase())) referencedRoles.add(a.name)
+          }
+        }
+      }
+    })
+  }
+
+  // 扫描画面/描述中提及的角色名
+  const visualAllText = `${shot.visual || ''} ${currentPrompt}`
+  ;(assets.value || []).filter(a => a.category === 'role').forEach(char => {
+    const cName = String(char.name || '').trim()
+    if (cName && visualAllText.includes(cName) && !speakingRoles.has(cName.toLowerCase())) {
+      referencedRoles.add(cName)
+    }
+  })
+
   const audioSegments = []
+
+  // A. 有台词的角色处理
   if (dialogueLines.length) {
     dialogueLines.forEach(line => {
       let roleName = ''
@@ -1273,7 +1312,6 @@ function applySixDimAudioFormulaToShot(shot, appearedRoles = new Set()) {
       }
       if (seg) audioSegments.push(seg)
 
-      // 若项目中已有该角色的主母本音频资产，且当前分镜尚未挂载，自动引用以锁定音色
       if (isSubsequent && Array.isArray(shot.references)) {
         const masterAudio = (assets.value || []).find(a => {
           return a.category === 'audio' && a.subCategory === 'voice' && String(a.name || '').toLowerCase().includes(roleKey)
@@ -1285,22 +1323,94 @@ function applySixDimAudioFormulaToShot(shot, appearedRoles = new Set()) {
     })
   }
 
-  (shot.references || []).forEach(ref => {
+  // B. 在场但本镜无台词的角色（必须锁定音色与呼吸微动态，杜绝无台词镜头丢失音色锚点）
+  referencedRoles.forEach(roleName => {
+    const roleKey = roleName.toLowerCase()
+    const isSubsequent = appearedRoles.has(roleKey)
+    appearedRoles.add(roleKey)
+
+    const charAsset = assetMap.get(roleKey) || null
+    const profile = extractCharacterVoiceProfile(charAsset, roleName, '')
+
+    const vocalPieces = [
+      profile.identity,
+      profile.gender,
+      profile.age,
+      profile.pitch,
+      profile.texture,
+    ]
+    if (isSubsequent) {
+      vocalPieces.push('沿用统一基准音色')
+    }
+    vocalPieces.push('本镜无对白（沉缓苍老低微呼吸与微动作摩擦态）')
+
+    audioSegments.push(`【统一音色·${roleName}】${vocalPieces.join('，')}`)
+  })
+
+  // C. 提炼动作拟音与环境音效
+  const sfxTokens = []
+  const actionFoley = []
+
+  // 从 references 及 一致性引用中查找 aud_sfx_ 资产
+  const allRefAssets = [...(shot.references || [])]
+  referencedTokens.forEach(t => {
+    const a = assetMap.get(t.toLowerCase()) || (assets.value || []).find(item => item.id === t || item.name === t)
+    if (a && !allRefAssets.includes(a)) allRefAssets.push(a)
+  })
+
+  allRefAssets.forEach(ref => {
     const rId = String(ref?.id || '').toLowerCase()
-    if (rId.startsWith('aud_vo_') || (ref?.category === 'audio' && ref?.subCategory === 'voice')) {
-      const p = String(ref?.prompt || '').trim()
-      if (p && !audioSegments.some(s => s.includes(p) || p.includes(s))) {
-        audioSegments.push(p)
+    const rName = String(ref?.name || '')
+    const isSfx = rId.startsWith('aud_sfx_') || (ref?.category === 'audio' && ref?.subCategory === 'sfx') || /雨|雷|钟|门|风|水|脚步|碰撞|摩擦/.test(rName)
+    if (isSfx) {
+      let desc = String(ref?.prompt || ref?.description || ref?.desc || '').trim()
+      if (!desc || desc.includes('你好，很高兴认识你')) {
+        if (/rain|雨/.test(rId + rName)) desc = '窗外雨点密集砸玻璃淌水声'
+        else if (/clock|钟/.test(rId + rName)) desc = '室内老式挂钟沉钝规律滴答声'
+        else if (/door|门/.test(rId + rName)) desc = '老旧木门轴沉闷摩擦微响'
+        else desc = rName
       }
+      if (desc && !sfxTokens.includes(desc)) sfxTokens.push(desc)
     }
   })
 
-  if (sfxDesc) {
-    audioSegments.push(`【环境音效】${sfxDesc}`)
+  // 从画面提取动作拟音 (Foley)
+  if (/翻过|翻面|木牌|铜钩|挂上|磕门槛|撂箱|擦汗|拿|放|撞击/.test(visualAllText)) {
+    const foleyParts = []
+    if (/翻.*木牌|挂.*铜钩|木牌.*晃/.test(visualAllText)) {
+      foleyParts.push('翻转木牌金属铜钩摩擦与晃动轻叩碰撞声')
+    }
+    if (/磕门槛|撂箱|抱纸箱/.test(visualAllText)) {
+      foleyParts.push('沉重纸箱磕碰门槛与柜台钝响')
+    }
+    if (foleyParts.length) actionFoley.push(foleyParts.join('，'))
   }
 
-  if (!audioSegments.length) {
-    const fallbackEnv = (shot.visual || currentPrompt).match(/(?:照相馆|雨夜|暗房|泥屋|街道|树林|山谷|荒野|客厅|大殿)/)?.[0] || '场景'
+  // 原有环境音及画面提示词线索补充
+  if (shot.audio) {
+    const rawAudioStr = Array.isArray(shot.audio)
+      ? shot.audio.map(a => typeof a === 'string' ? a : (a?.desc || a?.prompt || a?.name || '')).filter(Boolean).join('，')
+      : String(shot.audio).trim()
+    if (rawAudioStr && !sfxTokens.some(s => rawAudioStr.includes(s))) {
+      sfxTokens.push(rawAudioStr)
+    }
+  }
+
+  const soundClues = visualAllText.match(/(?:雨声|雷声|风声|脚步声|滴答声|碰撞声|钟声|吊钟钝响|摩擦声|水声|门声|倒水声|喘息声|杂音)/g)
+  if (soundClues && soundClues.length) {
+    const uniqueClues = Array.from(new Set(soundClues)).filter(c => !sfxTokens.some(s => s.includes(c)))
+    if (uniqueClues.length) {
+      sfxTokens.push(`环境伴随${uniqueClues.join('、')}`)
+    }
+  }
+
+  if (actionFoley.length) {
+    audioSegments.push(`【动作拟音】${actionFoley.join('；')}`)
+  }
+  if (sfxTokens.length) {
+    audioSegments.push(`【环境音效】${sfxTokens.join('，')}`)
+  } else if (!actionFoley.length && !audioSegments.length) {
+    const fallbackEnv = visualAllText.match(/(?:照相馆|雨夜|暗房|泥屋|街道|树林|山谷|荒野|客厅|大殿)/)?.[0] || '场景'
     audioSegments.push(`【环境音效】${fallbackEnv}近场声效与空间沉闷回响，清晰拟真质感`)
   }
 
