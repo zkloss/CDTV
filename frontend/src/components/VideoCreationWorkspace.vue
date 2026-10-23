@@ -1065,6 +1065,239 @@ function assetPromptFor(item, category) {
     .join('，')
 }
 
+function extractCharacterVoiceProfile(charAsset, fallbackName = '', mood = '') {
+  let identity = charAsset?.role || charAsset?.identity || charAsset?.occupation || ''
+  let gender = ''
+  let age = ''
+  const genderAge = String(charAsset?.gender_age || charAsset?.age || '')
+  if (/男/.test(genderAge)) gender = '男'
+  else if (/女/.test(genderAge)) gender = '女'
+  const ageMatch = genderAge.match(/(\d+\s*岁)/) || String(charAsset?.appearance || '').match(/(\d+\s*岁)/)
+  if (ageMatch) age = ageMatch[1]
+
+  const desc = `${charAsset?.name || fallbackName || ''} ${charAsset?.appearance || ''} ${charAsset?.description || ''}`
+  if (!identity) {
+    const occMatch = desc.match(/(摄影师|摄影店主|学徒|侦探|巡警|警察|医生|护士|剑修|掌门|长老|杀手|将军|掌柜|店小二|特工|军官|少爷|小姐|老板|店主|工人|法师|少年|老人|道士|僧人|青年|女孩|老者)/)
+    if (occMatch) identity = occMatch[1]
+    else identity = fallbackName || charAsset?.name || '角色'
+  }
+  if (!gender) {
+    if (/男|青年|少年|老者|叔|大爷|汉子|老头|师父|先生/.test(desc)) gender = '男'
+    else if (/女|少女|妇|姨|姑娘|老太|师妹|女士/.test(desc)) gender = '女'
+  }
+
+  let pitch = charAsset?.pitch || charAsset?.voice_pitch || ''
+  if (!pitch) {
+    const numAge = parseInt(age || '0')
+    if (gender === '男') {
+      pitch = (numAge && numAge >= 50) ? '低沉中音' : (numAge && numAge < 25 ? '清朗中音' : '沉稳中音')
+    } else if (gender === '女') {
+      pitch = (numAge && numAge <= 25) ? '清脆中高音' : '柔和中音'
+    } else {
+      pitch = '自然中音'
+    }
+  }
+
+  let texture = charAsset?.voice_texture || charAsset?.texture || ''
+  if (!texture) {
+    const temp = `${charAsset?.temperament || ''} ${charAsset?.personality || ''} ${desc}`
+    if (/老|沧桑|疲惫|干瘪|岁月|磨损/.test(temp)) texture = '沙哑微带沧桑颗粒感'
+    else if (/冷|冰|淡|威严|霸气/.test(temp)) texture = '冷峻沉实带有磁性'
+    else if (/年轻|活泼|急|慌|稚气|学徒|喘/.test(temp)) texture = '通透微带紧绷'
+    else if (/温|和|柔|慈祥|文雅/.test(temp)) texture = '温润饱满'
+    else texture = gender === '男' ? '醇厚微带颗粒感' : '干净清晰'
+  }
+
+  let feature = charAsset?.voice_feature || charAsset?.feature || ''
+  if (mood) {
+    if (/喘|急|慌|赶/.test(mood)) feature = '急促喘息'
+    else if (/叹|慢|沧桑|低沉|沉重/.test(mood)) feature = '沉缓沧桑略带叹息'
+    else if (/犹豫|迟疑|怯|顿/.test(mood)) feature = '迟疑微颤'
+    else if (/冷|定|决绝|严肃/.test(mood)) feature = '冷峻笃定'
+    else if (/笑|喜|乐|戏谑/.test(mood)) feature = '轻快带笑意'
+    else feature = mood.replace(/^[（(]|[)）]$/g, '').slice(0, 8)
+  }
+  if (!feature) {
+    const numAge = parseInt(age || '0')
+    if (numAge >= 50 || /老/.test(desc)) feature = '沉缓笃定'
+    else if (/急|学徒/.test(desc)) feature = '急切清晰'
+    else feature = '自然吐字连贯'
+  }
+
+  return { identity, gender, age, pitch, texture, feature, name: charAsset?.name || fallbackName }
+}
+
+function applySixDimAudioFormulaToShot(shot) {
+  if (!shot) return
+  const currentPrompt = shot.prompt || ''
+
+  let dialogueLines = []
+  if (Array.isArray(shot.dialogue) && shot.dialogue.length) {
+    dialogueLines = shot.dialogue
+  } else {
+    const diagMatch = currentPrompt.match(/(?:对白|台词)[：:]\s*([^\n]+)/)
+    if (diagMatch) {
+      dialogueLines = diagMatch[1].split(/[；;]/).map(s => s.trim()).filter(Boolean)
+    }
+  }
+
+  let sfxDesc = ''
+  if (shot.audio) {
+    if (Array.isArray(shot.audio)) {
+      sfxDesc = shot.audio.map(a => typeof a === 'string' ? a : (a?.desc || a?.prompt || a?.name || '')).filter(Boolean).join('，')
+    } else if (typeof shot.audio === 'string') {
+      sfxDesc = shot.audio.trim()
+    }
+  }
+  if (!sfxDesc) {
+    const sfxMatch = currentPrompt.match(/(?:环境音|音效|拟音)[：:]\s*([^\n]+)/)
+    if (sfxMatch) {
+      sfxDesc = sfxMatch[1].trim()
+    } else {
+      const visualMatch = currentPrompt.match(/(?:画面|提示词)[：:]\s*([^\n]+)/)
+      if (visualMatch) {
+        const soundClues = visualMatch[1].match(/(?:雨声|雷声|风声|脚步声|滴答声|碰撞声|钟声|摩擦声|水声|门声|倒水声|喘息声|杂音)/g)
+        if (soundClues && soundClues.length) {
+          sfxDesc = `环境伴随${Array.from(new Set(soundClues)).join('、')}`
+        }
+      }
+    }
+  }
+
+  const assetMap = new Map()
+  ;(assets.value || []).forEach(a => {
+    if (a?.name) assetMap.set(String(a.name).trim().toLowerCase(), a)
+    if (a?.id) assetMap.set(String(a.id).trim().toLowerCase(), a)
+  })
+  ;(shot.references || []).forEach(a => {
+    if (a?.name) assetMap.set(String(a.name).trim().toLowerCase(), a)
+    if (a?.id) assetMap.set(String(a.id).trim().toLowerCase(), a)
+  })
+
+  const audioSegments = []
+  if (dialogueLines.length) {
+    dialogueLines.forEach(line => {
+      let roleName = ''
+      let mood = ''
+      let speech = ''
+
+      if (typeof line === 'string') {
+        const m = line.match(/^([^\(（：:]+)(?:[\(（]([^\)）]+)[\)）])?[：:]\s*["“]?([^"”]+)["”]?$/)
+        if (m) {
+          roleName = m[1].trim()
+          mood = (m[2] || '').trim()
+          speech = (m[3] || '').trim()
+        } else {
+          speech = line.trim()
+        }
+      } else if (typeof line === 'object' && line) {
+        roleName = String(line.role || line.character || line.speaker || '').trim()
+        mood = String(line.mood || line.tone || line.action || '').trim()
+        speech = String(line.lines || line.line || line.text || line.content || '').trim()
+      }
+
+      const charAsset = roleName ? (assetMap.get(roleName.toLowerCase()) || null) : null
+      const profile = extractCharacterVoiceProfile(charAsset, roleName, mood)
+
+      const vocalPieces = [
+        profile.identity,
+        profile.gender,
+        profile.age,
+        profile.pitch,
+        profile.texture,
+        profile.feature,
+      ].filter(Boolean)
+
+      let seg = ''
+      if (roleName) {
+        seg = `【${roleName}】${vocalPieces.join('，')}${speech ? `：“${speech}”` : ''}`
+      } else if (vocalPieces.length) {
+        seg = `${vocalPieces.join('，')}${speech ? `：“${speech}”` : ''}`
+      } else if (speech) {
+        seg = speech
+      }
+      if (seg) audioSegments.push(seg)
+    })
+  }
+
+  (shot.references || []).forEach(ref => {
+    const rId = String(ref?.id || '').toLowerCase()
+    if (rId.startsWith('aud_vo_') || (ref?.category === 'audio' && ref?.subCategory === 'voice')) {
+      const p = String(ref?.prompt || '').trim()
+      if (p && !audioSegments.some(s => s.includes(p) || p.includes(s))) {
+        audioSegments.push(p)
+      }
+    }
+  })
+
+  if (sfxDesc) {
+    audioSegments.push(`【环境音效】${sfxDesc}`)
+  }
+
+  if (!audioSegments.length) {
+    const fallbackEnv = (shot.visual || currentPrompt).match(/(?:照相馆|雨夜|暗房|泥屋|街道|树林|山谷|荒野|客厅|大殿)/)?.[0] || '场景'
+    audioSegments.push(`【环境音效】${fallbackEnv}近场声效与空间沉闷回响，清晰拟真质感`)
+  }
+
+  const generatedAudioPrompt = `音频提示词：${audioSegments.join('；')}`
+
+  let promptLines = currentPrompt.split('\n')
+  const existingAudioIdx = promptLines.findIndex(l => /^(?:音频提示词|音频|声音)[：:]/.test(l.trim()))
+  if (existingAudioIdx !== -1) {
+    promptLines[existingAudioIdx] = generatedAudioPrompt
+  } else {
+    const diagIdx = promptLines.findIndex(l => /^(?:对白|台词)[：:]/.test(l.trim()))
+    if (diagIdx !== -1) {
+      promptLines.splice(diagIdx + 1, 0, generatedAudioPrompt)
+    } else {
+      const tipIdx = promptLines.findIndex(l => /^(?:提示词|画面)[：:]/.test(l.trim()))
+      if (tipIdx !== -1) {
+        promptLines.splice(tipIdx, 0, generatedAudioPrompt)
+      } else {
+        promptLines.push(generatedAudioPrompt)
+      }
+    }
+  }
+
+  shot.prompt = promptLines.join('\n')
+  shot.audio_prompt = audioSegments.join('；')
+}
+
+function formatAssetPromptToSixDim() {
+  if (!assetDraft.value) return
+  const currentPrompt = String(assetDraft.value.prompt || '').trim()
+  const assetName = String(assetDraft.value.name || '').trim()
+
+  let charAsset = null
+  const candidates = (assets.value || []).filter(a => a.category === 'role')
+  for (const c of candidates) {
+    if (assetName.toLowerCase().includes(String(c.name || '').toLowerCase()) || String(c.name || '').toLowerCase().includes(assetName.toLowerCase())) {
+      charAsset = c
+      break
+    }
+  }
+
+  const profile = extractCharacterVoiceProfile(charAsset, assetName)
+  const vocalPieces = [
+    profile.identity,
+    profile.gender,
+    profile.age,
+    profile.pitch,
+    profile.texture,
+    profile.feature,
+  ].filter(Boolean)
+
+  let speech = currentPrompt
+  const quoteMatch = currentPrompt.match(/[“"']([^"”']+)["”']/)
+  if (quoteMatch) speech = quoteMatch[1]
+  else {
+    const colonMatch = currentPrompt.match(/[：:](.+)$/)
+    if (colonMatch) speech = colonMatch[1].trim()
+  }
+
+  assetDraft.value.prompt = `${vocalPieces.join('，')}：“${speech}”`
+}
+
 function inferAudioPromptFromProject(asset) {
   if (!asset || asset.category !== 'audio') return ''
   const direct = String(
@@ -1109,7 +1342,29 @@ function inferAudioPromptFromProject(asset) {
   })
 
   if (matchedLines.length) {
-    return Array.from(new Set(matchedLines)).join('；')
+    const linesStr = Array.from(new Set(matchedLines)).join('；')
+    if (asset?.subCategory === 'voice' || targetId.startsWith('aud_vo_')) {
+      let charAsset = null
+      const candidates = (assets.value || []).filter(a => a.category === 'role')
+      for (const c of candidates) {
+        const cName = String(c.name || '').toLowerCase()
+        if (targetName.includes(cName) || targetId.includes(String(c.id || '').toLowerCase())) {
+          charAsset = c
+          break
+        }
+      }
+      const profile = extractCharacterVoiceProfile(charAsset, targetName)
+      const vocalPieces = [
+        profile.identity,
+        profile.gender,
+        profile.age,
+        profile.pitch,
+        profile.texture,
+        profile.feature,
+      ].filter(Boolean)
+      return `${vocalPieces.join('，')}：“${linesStr}”`
+    }
+    return linesStr
   }
 
   return String(asset.name || '语音或音效提示词')
@@ -1274,12 +1529,15 @@ function shotPromptFor(shot) {
       lines.push(`对白：${shot.dialogue.trim()}`)
     }
   }
-  if (shot?.audio) {
+  const explicitAudio = shot?.audio_prompt || shot?.audioPrompt
+  if (explicitAudio && typeof explicitAudio === 'string' && explicitAudio.trim()) {
+    lines.push(`音频提示词：${explicitAudio.trim()}`)
+  } else if (shot?.audio) {
     if (Array.isArray(shot.audio)) {
-      const audStr = shot.audio.map(a => typeof a === 'string' ? a : (a?.name || a?.style || a?.text || '')).filter(Boolean).join('；')
-      if (audStr) lines.push(`音频：${audStr}`)
+      const audStr = shot.audio.map(a => typeof a === 'string' ? a : (a?.prompt || a?.desc || a?.description || a?.name || a?.style || a?.text || '')).filter(Boolean).join('；')
+      if (audStr) lines.push(`音频提示词：${audStr}`)
     } else if (typeof shot.audio === 'string' && shot.audio.trim()) {
-      lines.push(`音频：${shot.audio.trim()}`)
+      lines.push(`音频提示词：${shot.audio.trim()}`)
     }
   }
   if (Array.isArray(shot?.wirelist) && shot.wirelist.length) {
@@ -3682,6 +3940,7 @@ onBeforeUnmount(() => {
             <StoryboardMentionEditor v-if="!shot.sendPreview" v-model="shot.prompt" class="storyboard-prompt-editor" :assets="mentionAssets(shot)" :labels="shot.referenceLabels" placeholder="描述分镜内容，输入 @ 选择已上传素材…" @select-asset="selectMentionAsset(shot, $event)" />
             <div v-else class="storyboard-send-preview" :class="`engine-${shot.generationEngine || 'doubao'}`" role="region" :aria-label="`实际发送给 ${generationEngineLabel(shot)} 的内容`"><header><svg viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/></svg><strong>实际发送内容 · {{ generationEngineLabel(shot) }}</strong><span>{{ sendPreviewSummary(shot) }}</span></header><pre>{{ sendPreviewText(shot) }}</pre></div>
             <div class="shot-editor-actions">
+              <button class="shot-audio-boost" type="button" aria-label="6维强感知音频提示词强化" data-tooltip="应用【职业+性别+年龄+音高+音质+发声特点】六维强感知公式优化音频提示词" @click.stop="applySixDimAudioFormulaToShot(shot)"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
               <button v-if="shot.expanded" class="shot-send-preview-toggle" :class="{ active: shot.sendPreview }" type="button" :aria-pressed="shot.sendPreview" :aria-label="shot.sendPreview ? '返回编辑内容' : '查看实际发送内容'" :data-tooltip="shot.sendPreview ? '返回编辑内容' : '查看实际发送内容'" @click.stop="shot.sendPreview = !shot.sendPreview"><svg v-if="!shot.sendPreview" viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z"/><circle cx="12" cy="12" r="2.5"/></svg><svg v-else viewBox="0 0 24 24"><path d="m4 4 16 16M10.7 6.2A8 8 0 0 1 12 6c5.5 0 9 6 9 6a14 14 0 0 1-2.1 2.8M6.3 6.3C4.2 7.8 3 10 3 12c0 0 3.5 6 9 6a8 8 0 0 0 3.3-.7"/></svg></button>
               <button class="shot-expand" type="button" :aria-label="shot.expanded ? '退出分镜放大' : '放大分镜内容'" :data-tooltip="shot.expanded ? '退出放大' : '放大分镜内容'" @click.stop="toggleShotExpanded(shot)"><svg v-if="!shot.expanded" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg><svg v-else viewBox="0 0 24 24"><path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5"/></svg></button>
             </div>
@@ -4025,7 +4284,10 @@ onBeforeUnmount(() => {
               <UiSelect v-model="assetDraft.voice" :options="VOICE_PRESET_OPTIONS" placeholder="选择音色预设" status badge="音色" />
             </label>
             <label>
-              <span>{{ assetDetailTarget.category === 'audio' ? (assetDraft.subCategory === 'voice' ? '语音台词 (TTS 朗读文本)' : '音效生成描述 / 提示词') : '生成提示词' }}</span>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>{{ assetDetailTarget.category === 'audio' ? (assetDraft.subCategory === 'voice' ? '语音台词 (TTS 朗读文本 / 视频音频提示词)' : '音效生成描述 / 提示词') : '生成提示词' }}</span>
+                <button v-if="assetDetailTarget.category === 'audio' && assetDraft.subCategory === 'voice'" type="button" class="btn-audio-formula-mini" title="套用【职业身份+性别+年龄+音高+声音质地+发声特点】六维强感知音频公式" @click="formatAssetPromptToSixDim">🎙️ 套用6维音频公式</button>
+              </div>
               <textarea v-model="assetDraft.prompt" rows="6" :placeholder="assetDetailTarget.category === 'audio' ? (assetDraft.subCategory === 'voice' ? '输入要朗读的纯文本台词（如：鸿蒙初降，诸天共尊…）' : '输入拟声音效描述（如：沉重老旧木门缓缓推开时发出的干涩摩擦声…）') : '用于生成图片或音频的完整提示词'"></textarea>
             </label>
             <div v-if="assetDetailTarget.category === 'audio' && assetDraft.subCategory === 'sfx'" class="sfx-upload-card">
@@ -4218,6 +4480,9 @@ onBeforeUnmount(() => {
 .shot-editor-actions > button:hover { border-color: #42464d; color: #f0f2f5; background: #292c31; }
 .shot-editor-actions > button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .shot-editor-actions .shot-send-preview-toggle.active { border-color: #66d9ef50; color: #bff5ff; background: #173039; }
+.shot-editor-actions .shot-audio-boost:hover { border-color: rgba(245, 158, 11, 0.5); color: #fbbf24; background: rgba(245, 158, 11, 0.12); }
+.btn-audio-formula-mini { padding: 2px 8px; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 5px; font-size: 11px; color: #fbbf24; background: rgba(245, 158, 11, 0.08); cursor: pointer; transition: all .15s ease; }
+.btn-audio-formula-mini:hover { background: rgba(245, 158, 11, 0.2); border-color: #fbbf24; }
 .storyboard-toolbar { display: flex; width: 100%; min-width: 0; max-width: none; min-height: 42px; box-sizing: border-box; align-items: center; gap: 10px; margin: 0; padding: 8px 12px; border-top: 1px solid #2e2e2e; color: #9a9a9a; font-size: 12px; }
 .storyboard-toolbar button { display: flex; align-items: center; gap: 5px; padding: 4px 5px; border: 0; color: #aaa; background: transparent; cursor: pointer; font-size: 12px; white-space: nowrap; }
 .storyboard-toolbar button:hover { color: #fff; }.storyboard-toolbar button svg { width: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; }
