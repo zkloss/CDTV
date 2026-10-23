@@ -2946,6 +2946,109 @@ class DesktopApi:
                 except OSError:
                     pass
 
+    def save_file_as(self, source_path: str, suggested_name: str = "") -> dict[str, Any] | None:
+        """Copy a local file (image/audio/video) through the native Save As dialog."""
+
+        if self._window is None:
+            raise RuntimeError("桌面窗口尚未就绪")
+
+        source = Path(str(source_path or "")).resolve()
+        if not source.is_file():
+            raise ValueError("源文件不存在")
+
+        safe_name = Path(str(suggested_name or source.name)).name.strip() or source.name
+        safe_name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", safe_name).strip(" .") or source.name
+        if Path(safe_name).suffix.lower() != source.suffix.lower():
+            safe_name = f"{Path(safe_name).stem or source.stem}{source.suffix}"
+
+        dialog_name = safe_name
+        if (source.parent / dialog_name).exists():
+            stem = Path(safe_name).stem or source.stem
+            dialog_name = f"{stem}_副本{source.suffix}"
+            copy_index = 2
+            while (source.parent / dialog_name).exists():
+                dialog_name = f"{stem}_副本 ({copy_index}){source.suffix}"
+                copy_index += 1
+
+        ext = source.suffix.lower()
+        if ext in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}:
+            file_types = (f"Image files (*{ext})", "All files (*.*)")
+        elif ext in {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}:
+            file_types = (f"Audio files (*{ext})", "All files (*.*)")
+        elif ext in {".mp4", ".mov", ".m4v", ".webm", ".avi", ".mkv"}:
+            file_types = (f"Video files (*{ext})", "All files (*.*)")
+        else:
+            file_types = (f"Files (*{ext})", "All files (*.*)")
+
+        result = self._window.create_file_dialog(
+            webview.FileDialog.SAVE,
+            directory=str(source.parent),
+            save_filename=dialog_name,
+            file_types=file_types,
+        )
+        if not result:
+            return None
+
+        target = Path(result[0]).resolve()
+        if target.suffix.lower() != source.suffix.lower():
+            target = target.with_suffix(source.suffix)
+        if target == source:
+            return {"saved": True, "path": str(source), "name": source.name}
+
+        try:
+            shutil.copy2(source, target)
+        except OSError as exc:
+            raise ValueError(f"另存失败：{exc}") from exc
+        return {"saved": True, "path": str(target), "name": target.name}
+
+    def save_server_file_as(
+        self,
+        token: str,
+        file_id: str,
+        suggested_name: str = "",
+    ) -> dict[str, Any] | None:
+        """Download any stored project file and open the native Save As dialog."""
+
+        clean_file_id = str(file_id or "").strip()
+        if not clean_file_id or not re.fullmatch(r"[A-Za-z0-9_-]+", clean_file_id):
+            raise ValueError("文件 ID 无效")
+        active_token = str(token or self._read_auth().get("token") or "")
+        if not active_token:
+            raise ValueError("登录状态已失效，请重新登录")
+        self._ensure_local_storage_migrated(active_token)
+
+        download_dir = (DATA_DIR / "download_cache").resolve()
+        download_dir.mkdir(parents=True, exist_ok=True)
+        temp_path: Path | None = None
+        try:
+            response = self._file_request(
+                "GET",
+                clean_file_id,
+                headers=self._auth_headers(active_token),
+                timeout=180,
+            )
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "").split(";", 1)[0].strip()
+            suffix = mimetypes.guess_extension(content_type) or Path(str(suggested_name)).suffix or ".png"
+            if suffix == ".jpe":
+                suffix = ".jpg"
+            temp_path = download_dir / f"{uuid.uuid4().hex}{suffix.lower()}"
+            temp_path.write_bytes(response.content)
+            safe_name = Path(str(suggested_name or f"file{suffix}")).name
+            return self.save_file_as(str(temp_path), safe_name)
+        except httpx.TimeoutException as exc:
+            raise ValueError("下载超时，请重试") from exc
+        except httpx.HTTPError as exc:
+            raise ValueError(f"下载失败：{exc}") from exc
+        except OSError as exc:
+            raise ValueError(f"临时文件保存失败：{exc}") from exc
+        finally:
+            if temp_path is not None:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
     def create_generation_account(self, name: str, account_type: str = "doubao", token: str = "") -> dict[str, Any]:
         """显式类型接口；前端通过其存在性识别尚未重启的旧版后台。"""
         return self.create_account(name, token, account_type)

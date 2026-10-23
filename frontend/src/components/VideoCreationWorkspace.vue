@@ -2098,6 +2098,50 @@ function clearAssetMedia(asset) {
 }
 function clearAssetImage(asset) { clearAssetMedia(asset) }
 
+const downloadingAssetMedia = ref(false)
+
+async function downloadAssetMedia(asset) {
+  const url = assetUrl(asset)
+  if (!url || downloadingAssetMedia.value) return
+  downloadingAssetMedia.value = true
+  try {
+    const isAudio = isAudioAsset(asset)
+    const ext = isAudio ? 'mp3' : 'png'
+    const rawName = String(asset?.name || assetDraft.value?.name || asset?.id || (isAudio ? '音频' : '图片')).trim()
+    const cleanName = rawName.replace(/[\\/:*?"<>|]/g, '_') || 'asset'
+    const suggestedName = `${cleanName}.${ext}`
+
+    const fileId = String(asset?.fileId || asset?.coverId || fileIdFromUrl(url) || '').trim()
+    if (fileId && window.pywebview?.api?.save_server_file_as) {
+      const res = await window.pywebview.api.save_server_file_as(props.token, fileId, suggestedName)
+      if (res === null || res?.saved) return
+    }
+
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const blob = await response.blob()
+    if (!blob.size) throw new Error('文件内容为空')
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = suggestedName
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  } catch (err) {
+    console.error('下载资产媒体失败:', err)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${String(asset?.name || 'asset')}.png`
+    link.target = '_blank'
+    link.click()
+  } finally {
+    downloadingAssetMedia.value = false
+  }
+}
+
 function assetUrl(asset) {
   const resolvedAsset = resolveAssetReference(asset)
   if (resolvedAsset?.cover) return absoluteMediaUrl(resolvedAsset.cover)
@@ -3937,6 +3981,7 @@ onBeforeUnmount(() => {
             <div class="asset-detail-media-actions">
               <button v-if="assetDetailTarget.category !== 'audio'" type="button" aria-label="从本地上传图片" data-tooltip="从本地上传图片" data-tooltip-pos="top" @click="selectLocalImageForAsset(assetDetailTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"/></svg></button>
               <button v-else type="button" aria-label="从本地上传音频 (MP3/WAV)" data-tooltip="从本地上传音频 (MP3/WAV)" data-tooltip-pos="top" @click="selectLocalImageForAsset(assetDetailTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"/></svg></button>
+              <button v-if="assetUrl(assetDetailTarget)" class="asset-detail-download-media" type="button" :disabled="downloadingAssetMedia" :aria-label="assetDetailTarget.category === 'audio' ? '下载音频' : '下载图片'" :data-tooltip="assetDetailTarget.category === 'audio' ? '下载音频' : '下载图片'" data-tooltip-pos="top" @click="downloadAssetMedia(assetDetailTarget)"><span v-if="downloadingAssetMedia" class="asset-generate-spinner"></span><svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg></button>
               <button v-if="assetUrl(assetDetailTarget)" class="asset-detail-clear-image" type="button" :aria-label="assetDetailTarget.category === 'audio' ? '清空音频' : '清空图片'" :data-tooltip="assetDetailTarget.category === 'audio' ? '清空音频' : '清空图片'" data-tooltip-pos="top" @click="clearAssetMedia(assetDetailTarget)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5"/></svg></button>
               <button class="asset-detail-generate-media" :class="{ 'is-generating': assetDetailTarget.generating }" type="button" :aria-label="assetDetailTarget.generating ? '终止生成' : assetDetailTarget.category === 'audio' ? (assetDraft.subCategory === 'voice' ? '生成语音' : '生成音效') : '重新生成图片'" :data-tooltip="assetDetailTarget.generating ? '终止生成' : assetDetailTarget.category === 'audio' ? (assetDraft.subCategory === 'voice' ? '生成语音' : '生成音效') : '重新生成图片'" data-tooltip-pos="top" @click.stop="assetDetailTarget.generating ? cancelAsset(assetDetailTarget) : generateAssetFromDetail()"><span v-if="assetDetailTarget.generating" class="asset-generate-spinner"></span><svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"/><path d="m18.5 15 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg></button>
             </div>
@@ -4269,7 +4314,7 @@ onBeforeUnmount(() => {
 .asset-detail-audio-copy input::-moz-range-thumb { width: 9px; height: 9px; border: 2px solid #171717; border-radius: 50%; background: #f1f1f1; }
 .asset-detail-audio-player time { color: #999; font: 11px/1.2 Consolas,monospace; white-space: nowrap; }
 .asset-detail-audio-volume { width: 18px; fill: none; stroke: #888; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.asset-detail-media-actions { display: flex; align-items: center; justify-content: center; gap: 8px; }.asset-detail-media-actions button { display: grid; width: 42px; height: 42px; padding: 0; place-items: center; border: 1px solid #3f3f3f; border-radius: 11px; color: #aaa; background: #232323; cursor: pointer; transition: border-color .16s ease,color .16s ease,background .16s ease,transform .16s ease; }.asset-detail-media-actions button:hover:not(:disabled) { border-color: #666; color: #eee; background: #303030; transform: translateY(-1px); }.asset-detail-media-actions button:focus-visible { outline: 2px solid #aaa; outline-offset: 2px; }.asset-detail-media-actions button:disabled { cursor: wait; opacity: .5; }.asset-detail-media-actions svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }.asset-detail-media-actions .asset-detail-generate-media { border-color: #ddd; color: #151515; background: #e5e5e5; }.asset-detail-media-actions .asset-detail-generate-media:hover:not(:disabled) { border-color: #fff; color: #080808; background: #fff; }.asset-detail-media-actions .asset-detail-clear-image:hover:not(:disabled) { border-color: #70444a; color: #e59aa2; background: #302124; }
+.asset-detail-media-actions { display: flex; align-items: center; justify-content: center; gap: 8px; }.asset-detail-media-actions button { display: grid; width: 42px; height: 42px; padding: 0; place-items: center; border: 1px solid #3f3f3f; border-radius: 11px; color: #aaa; background: #232323; cursor: pointer; transition: border-color .16s ease,color .16s ease,background .16s ease,transform .16s ease; }.asset-detail-media-actions button:hover:not(:disabled) { border-color: #666; color: #eee; background: #303030; transform: translateY(-1px); }.asset-detail-media-actions button:focus-visible { outline: 2px solid #aaa; outline-offset: 2px; }.asset-detail-media-actions button:disabled { cursor: wait; opacity: .5; }.asset-detail-media-actions svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }.asset-detail-media-actions .asset-detail-generate-media { border-color: #ddd; color: #151515; background: #e5e5e5; }.asset-detail-media-actions .asset-detail-generate-media:hover:not(:disabled) { border-color: #fff; color: #080808; background: #fff; }.asset-detail-media-actions .asset-detail-download-media:hover:not(:disabled) { border-color: #4a6890; color: #9bc5ff; background: #212936; }.asset-detail-media-actions .asset-detail-clear-image:hover:not(:disabled) { border-color: #70444a; color: #e59aa2; background: #302124; }
 .asset-detail-fields { display: grid; min-width: 0; align-content: start; gap: 14px; }.asset-detail-fields > label { display: grid; gap: 7px; }.asset-detail-fields > label > span { color: #aaa; font-size: 14px; }.asset-detail-fields input,.asset-detail-fields textarea { width: 100%; box-sizing: border-box; padding: 10px 11px; border: 1px solid #3b3b3b; border-radius: 9px; outline: 0; color: #ddd; background: #101010; font: 14px/1.6 inherit; }.asset-detail-fields textarea { resize: vertical; scrollbar-width: thin; scrollbar-color: #555 transparent; }.asset-detail-fields input:focus,.asset-detail-fields textarea:focus { border-color: #707070; box-shadow: 0 0 0 3px #ffffff08; }.asset-detail-fields details { overflow: hidden; border: 1px solid #363636; border-radius: 10px; background: #121212; }.asset-detail-fields summary { padding: 10px 12px; color: #999; cursor: pointer; font-size: 14px; }.asset-detail-fields pre { max-height: 210px; margin: 0; padding: 12px; overflow: auto; border-top: 1px solid #303030; color: #8f9aa5; font: 12px/1.6 Consolas,monospace; white-space: pre-wrap; word-break: break-word; }.asset-detail-error { margin: 0; color: #d99999; font-size: 13px; }
 .asset-detail-fields textarea[readonly] { border-color: #333; color: #c8c8c8; background: #171717; cursor: default; }
 .asset-detail-default-prompt { display: grid; gap: 7px; }.asset-detail-default-prompt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.asset-detail-default-prompt-head > span { color: #aaa; font-size: 14px; }.asset-detail-default-prompt-head button { position: relative; width: 38px; height: 22px; flex: 0 0 38px; padding: 0; border: 1px solid #585858; border-radius: 999px; outline: 0; background: #2a2a2a; cursor: pointer; transition: border-color .18s ease,background .18s ease; }.asset-detail-default-prompt-head button i { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #888; transition: left .18s ease,background .18s ease; }.asset-detail-default-prompt-head button[aria-checked="true"] { border-color: #d8d8d8; background: #e7e7e7; }.asset-detail-default-prompt-head button[aria-checked="true"] i { left: 19px; background: #171717; }.asset-detail-default-prompt-head button:focus-visible { box-shadow: 0 0 0 3px #ffffff24; }.asset-detail-default-prompt textarea { transition: opacity .18s ease,border-color .18s ease; }.asset-detail-default-prompt small { color: #777; font-size: 12px; line-height: 1.5; }.asset-detail-default-prompt.disabled textarea { opacity: .42; }.asset-detail-default-prompt.disabled small { color: #9a8587; }

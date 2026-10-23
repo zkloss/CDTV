@@ -79,6 +79,10 @@
             <button type="button" class="tool-btn" aria-label="重置" @click="reset">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0ZM12 8v8M8 12h8" /></svg>
             </button>
+            <span class="tool-divider" />
+            <button type="button" class="tool-btn" :disabled="downloading" aria-label="下载原图" title="下载原图" @click="downloadCurrentMedia">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
+            </button>
           </div>
         </div>
       </div>
@@ -110,6 +114,50 @@ const isDragging = ref(false)
 const activeSrc = ref(props.src)
 let dragStart = { x: 0, y: 0, posX: 0, posY: 0 }
 let stopVideoFrameWatch = null
+const downloading = ref(false)
+
+async function downloadCurrentMedia() {
+  const url = activeSrc.value || props.src
+  if (!url || downloading.value) return
+  downloading.value = true
+  try {
+    const isAudio = props.type === 'audio'
+    const isVideo = props.type === 'video'
+    const ext = isAudio ? 'mp3' : isVideo ? 'mp4' : 'png'
+    const currentItem = previewImages.value.find(item => item.src === url)
+    const rawName = currentItem?.name || (isAudio ? '音频' : isVideo ? '视频' : '图片')
+    const suggestedName = `${String(rawName).trim().replace(/[\\/:*?"<>|]/g, '_') || 'media'}.${ext}`
+
+    const fileId = decodeURIComponent(String(url || '').match(/\/file\/([^/]+)\/download/)?.[1] || '')
+    if (fileId && window.pywebview?.api?.save_server_file_as) {
+      const res = await window.pywebview.api.save_server_file_as('local-storage', fileId, suggestedName)
+      if (res === null || res?.saved) return
+    }
+
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const blob = await response.blob()
+    if (!blob.size) throw new Error('文件内容为空')
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = suggestedName
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  } catch (err) {
+    console.error('下载媒体失败:', err)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `media-${Date.now()}`
+    link.target = '_blank'
+    link.click()
+  } finally {
+    downloading.value = false
+  }
+}
 
 const imageStyle = computed(() => ({
   transform: `translate(${pos.value.x}px, ${pos.value.y}px) scale(${scale.value}) rotate(${rotation.value}deg)`,
