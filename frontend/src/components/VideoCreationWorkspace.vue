@@ -1065,7 +1065,45 @@ function assetPromptFor(item, category) {
     .join('，')
 }
 
+// 全集项目级角色统一声学指纹缓存，确保全集同一人物 100% 相同音色
+const projectCharacterVoiceRegistry = new Map()
+
+function getCanonicalVoicePreset(gender, age, desc = '') {
+  const numAge = parseInt(age || '0')
+  if (gender === '男') {
+    if (numAge >= 50 || /老|沧桑|大爷|老者/.test(desc)) return 'longshu_v2'
+    if (/霸气|威严|长老|宗主|掌门/.test(desc)) return 'longjing_v2'
+    if (/壮汉|粗犷|豪放/.test(desc)) return 'longlaotie_v2'
+    if (numAge < 25 || /少年|少侠|学徒|年轻/.test(desc)) return 'longyuan_v2'
+    return 'longshuo_v2'
+  } else if (gender === '女') {
+    if (numAge <= 16 || /萝莉|萌|幼/.test(desc)) return 'longmiao_v2'
+    if (numAge <= 25 || /少女|学徒|活泼|灵动/.test(desc)) return 'longtian_v2'
+    if (/知性|高冷|师姐|仙尊|女帝/.test(desc)) return 'longyue_v2'
+    return 'longxiaochun_v2'
+  }
+  return 'longshuo_v2'
+}
+
 function extractCharacterVoiceProfile(charAsset, fallbackName = '', mood = '') {
+  const name = String(charAsset?.name || fallbackName || '角色').trim()
+  const key = name.toLowerCase()
+
+  // 如果已有全集统一声学档案，基准声学属性严格锁死一致，避免同人不同音
+  if (projectCharacterVoiceRegistry.has(key)) {
+    const cached = projectCharacterVoiceRegistry.get(key)
+    let feature = cached.feature
+    if (mood) {
+      if (/喘|急|慌|赶/.test(mood)) feature = '急促喘息'
+      else if (/叹|慢|沧桑|低沉|沉重/.test(mood)) feature = '沉缓沧桑略带叹息'
+      else if (/犹豫|迟疑|怯|顿/.test(mood)) feature = '迟疑微颤'
+      else if (/冷|定|决绝|严肃/.test(mood)) feature = '冷峻笃定'
+      else if (/笑|喜|乐|戏谑/.test(mood)) feature = '轻快带笑意'
+      else feature = mood.replace(/^[（(]|[)）]$/g, '').slice(0, 8)
+    }
+    return { ...cached, feature }
+  }
+
   let identity = charAsset?.role || charAsset?.identity || charAsset?.occupation || ''
   let gender = ''
   let age = ''
@@ -1075,11 +1113,11 @@ function extractCharacterVoiceProfile(charAsset, fallbackName = '', mood = '') {
   const ageMatch = genderAge.match(/(\d+\s*岁)/) || String(charAsset?.appearance || '').match(/(\d+\s*岁)/)
   if (ageMatch) age = ageMatch[1]
 
-  const desc = `${charAsset?.name || fallbackName || ''} ${charAsset?.appearance || ''} ${charAsset?.description || ''}`
+  const desc = `${name} ${charAsset?.appearance || ''} ${charAsset?.description || ''}`
   if (!identity) {
     const occMatch = desc.match(/(摄影师|摄影店主|学徒|侦探|巡警|警察|医生|护士|剑修|掌门|长老|杀手|将军|掌柜|店小二|特工|军官|少爷|小姐|老板|店主|工人|法师|少年|老人|道士|僧人|青年|女孩|老者)/)
     if (occMatch) identity = occMatch[1]
-    else identity = fallbackName || charAsset?.name || '角色'
+    else identity = name || '角色'
   }
   if (!gender) {
     if (/男|青年|少年|老者|叔|大爷|汉子|老头|师父|先生/.test(desc)) gender = '男'
@@ -1124,10 +1162,18 @@ function extractCharacterVoiceProfile(charAsset, fallbackName = '', mood = '') {
     else feature = '自然吐字连贯'
   }
 
-  return { identity, gender, age, pitch, texture, feature, name: charAsset?.name || fallbackName }
+  const voiceId = charAsset?.voice || getCanonicalVoicePreset(gender, age, desc)
+  const profile = { identity, gender, age, pitch, texture, feature, name, voiceId }
+  if (name && key) {
+    projectCharacterVoiceRegistry.set(key, profile)
+  }
+  if (charAsset && !charAsset.voice) {
+    charAsset.voice = voiceId
+  }
+  return profile
 }
 
-function applySixDimAudioFormulaToShot(shot) {
+function applySixDimAudioFormulaToShot(shot, appearedRoles = new Set()) {
   if (!shot) return
   const currentPrompt = shot.prompt || ''
 
@@ -1196,7 +1242,11 @@ function applySixDimAudioFormulaToShot(shot) {
         speech = String(line.lines || line.line || line.text || line.content || '').trim()
       }
 
-      const charAsset = roleName ? (assetMap.get(roleName.toLowerCase()) || null) : null
+      const roleKey = roleName.toLowerCase()
+      const isSubsequent = appearedRoles.has(roleKey)
+      appearedRoles.add(roleKey)
+
+      const charAsset = roleName ? (assetMap.get(roleKey) || null) : null
       const profile = extractCharacterVoiceProfile(charAsset, roleName, mood)
 
       const vocalPieces = [
@@ -1205,18 +1255,33 @@ function applySixDimAudioFormulaToShot(shot) {
         profile.age,
         profile.pitch,
         profile.texture,
-        profile.feature,
-      ].filter(Boolean)
+      ]
+      if (isSubsequent) {
+        vocalPieces.push('沿用统一基准音色')
+      }
+      if (profile.feature) {
+        vocalPieces.push(profile.feature)
+      }
 
       let seg = ''
       if (roleName) {
-        seg = `【${roleName}】${vocalPieces.join('，')}${speech ? `：“${speech}”` : ''}`
+        seg = `【统一音色·${roleName}】${vocalPieces.join('，')}${speech ? `：“${speech}”` : ''}`
       } else if (vocalPieces.length) {
         seg = `${vocalPieces.join('，')}${speech ? `：“${speech}”` : ''}`
       } else if (speech) {
         seg = speech
       }
       if (seg) audioSegments.push(seg)
+
+      // 若项目中已有该角色的主母本音频资产，且当前分镜尚未挂载，自动引用以锁定音色
+      if (isSubsequent && Array.isArray(shot.references)) {
+        const masterAudio = (assets.value || []).find(a => {
+          return a.category === 'audio' && a.subCategory === 'voice' && String(a.name || '').toLowerCase().includes(roleKey)
+        })
+        if (masterAudio && !shot.references.some(r => String(r.id || '').toLowerCase() === String(masterAudio.id || '').toLowerCase())) {
+          shot.references.push(masterAudio)
+        }
+      }
     })
   }
 
@@ -1261,6 +1326,39 @@ function applySixDimAudioFormulaToShot(shot) {
 
   shot.prompt = promptLines.join('\n')
   shot.audio_prompt = audioSegments.join('；')
+}
+
+function syncEpisodeCharacterVoices() {
+  if (!Array.isArray(storyboards.value) || !storyboards.value.length) return
+  projectCharacterVoiceRegistry.clear()
+
+  // 1. 先初始化所有角色资产的基准声学指纹
+  ;(assets.value || []).filter(a => a.category === 'role').forEach(char => {
+    extractCharacterVoiceProfile(char, char.name, '')
+  })
+
+  // 2. 跨分镜统一锁定声学提示词，后续出场标注“沿用统一基准音色”
+  const appearedRoles = new Set()
+  let syncedShots = 0
+  storyboards.value.forEach(shot => {
+    applySixDimAudioFormulaToShot(shot, appearedRoles)
+    syncedShots += 1
+  })
+
+  // 3. 将所有配音资产绑定到同一角色的统一 voice 音色代号
+  ;(assets.value || []).filter(a => a.category === 'audio' && a.subCategory === 'voice').forEach(audio => {
+    const aName = String(audio.name || '').toLowerCase()
+    for (const [key, profile] of projectCharacterVoiceRegistry.entries()) {
+      if (aName.includes(key) && profile.voiceId) {
+        audio.voice = profile.voiceId
+        break
+      }
+    }
+  })
+
+  if (activeVideoProject.value) {
+    activeVideoProject.value.saveStatus = `已完成全集 ${syncedShots} 个分镜的角色音色统一锁定！`
+  }
 }
 
 function formatAssetPromptToSixDim() {
@@ -3679,6 +3777,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="workbench-head-actions">
         <span class="workbench-save-status" :class="projectSaveTone" :data-tooltip="projectSaveStatus || '任务修改会自动保存到数据库'"><i></i>{{ projectSaveLabel }}</span>
+        <button class="workbench-sync-voices" type="button" data-tooltip="锁定全集同一人物声音特征，一键同步所有分镜音色，杜绝同人不同音" @click="syncEpisodeCharacterVoices"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><circle cx="18" cy="18" r="3"/></svg><span>🔒 同步全集音色</span></button>
         <button class="workbench-add-shot" type="button" @click="addStoryboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>新增分镜</span></button>
       </div>
     </header>
@@ -4704,6 +4803,9 @@ onBeforeUnmount(() => {
 .workbench-meta > span { display: inline-flex; min-height: 24px; box-sizing: border-box; align-items: center; gap: 6px; padding: 0 8px; border: 1px solid var(--studio-border); border-radius: 999px; color: #8e97a7; background: #ffffff05; font-size: 12px; }
 .workbench-meta .save-state { color: #99d8ca; }
 .workbench-meta .save-state i { width: 6px; height: 6px; border-radius: 50%; background: #58d3ad; box-shadow: 0 0 9px #58d3ad88; }
+.video-workbench-head .workbench-sync-voices { display: inline-flex; height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 0 15px; border: 1px solid rgba(245, 158, 11, 0.45); border-radius: 12px; color: #fbbf24; font-size: 13px; font-weight: 650; background: rgba(245, 158, 11, 0.1); cursor: pointer; transition: all .18s ease; }
+.video-workbench-head .workbench-sync-voices:hover { background: rgba(245, 158, 11, 0.22); border-color: #fbbf24; transform: translateY(-1px); }
+.video-workbench-head .workbench-sync-voices svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .video-workbench-head .workbench-add-shot { display: inline-flex; min-width: 128px; height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 0 16px; border: 0; border-radius: 12px; color: #071217; background: linear-gradient(105deg,var(--studio-accent),#8ce4ec 55%,var(--studio-pink)); box-shadow: 0 13px 30px rgba(var(--studio-accent-rgb),.16); font-size: 14px; font-weight: 800; transition: filter .18s ease,transform .18s ease; }
 .video-workbench-head .workbench-add-shot:hover { border-color: transparent; background: linear-gradient(105deg,var(--studio-accent),#8ce4ec 55%,var(--studio-pink)); filter: brightness(1.08); transform: translateY(-1px); }
 .workbench-add-shot svg { width: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
