@@ -1,45 +1,131 @@
 # -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller 打包配置：生成免 Java、免登录、本地化的 Windows 客户端。
 
+产物为目录模式（dist/CDTV/），exe 与依赖同目录。
+
+需要与 exe 同级放置的外部资源（体积大、或需要可写，不打进 exe）：
+- runtime/chrome-win64/   可选内置 Chromium（OriginalDoubao 自动化使用，约 420MB）
+可选：
+- runtime/jre/            仅在需要回退到 Java 存储服务时才需要，本地模式下不必提供
+
+前端产物（frontend/dist）与图标资源会打包进 exe。
+"""
+import sys
+from pathlib import Path
+
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+ROOT = Path(SPECPATH).resolve()
+
+datas = [
+    (str(ROOT / "motion_runtime"), "motion_runtime"),
+    (str(ROOT / "SKILL"), "SKILL"),
+    (str(ROOT / "custom_rules"), "custom_rules"),
+    (str(ROOT / "frontend" / "dist"), "frontend/dist"),
+    (str(ROOT / "assets"), "assets"),
+    (str(ROOT / "runtime" / "ffmpeg.exe"), "runtime"),
+    (str(ROOT / "runtime" / "ffprobe.exe"), "runtime"),
+    (str(ROOT / "runtime" / "audio-review"), "runtime/audio-review"),
+]
+
+# 可选：便携 Node.js，用于 Remotion / huashu-motion 整片渲染。
+_node = ROOT / "motion_runtime" / "node.exe"
+if _node.is_file():
+    datas.append((str(_node), "motion_runtime"))
+
+# playwright 需要运行时定位自带的 Node 驱动与 package 文件。
+# 浏览器本体由外部 runtime/chrome-win64 提供，排除重复的 .local-browsers 以减小安装包。
+playwright_datas = [
+    (src, dest)
+    for src, dest in collect_data_files("playwright")
+    if ".local-browsers" not in (src + "\\" + dest).lower()
+]
+datas += playwright_datas
+
+hiddenimports = [
+    "shotcraft_bridge",
+    "whole_film_renderer",
+    "webview",
+    "webview.platforms.edgechromium",
+    "webview.platforms.winforms",
+    "clr_loader",
+    "pythonnet",
+    "httpx",
+    "httpcore",
+    "local_storage",
+    "model_seeds",
+    "original_doubao_worker",
+    "original_doubao_base",
+    "dola_login",
+    "original_doubao_video_worker",
+    "original_doubao_image_worker",
+    "original_doubao_nomark",
+    "dola_client",
+    "cryptography",
+    "media_server",
+    "constants",
+    "skill_loader",
+    "breeze_bridge",
+    "dubbing_alignment",
+]
+hiddenimports += collect_submodules("playwright")
+
+block_cipher = None
 
 a = Analysis(
-    ['launcher.py'],
-    pathex=[],
+    [str(ROOT / "launcher.py")],
+    pathex=[str(ROOT)],
     binaries=[],
-    datas=[('frontend/dist', 'frontend/dist'), ('skill_loader.py', '.'), ('model_seeds.py', '.'), ('film_filter.py', '.'), ('external_toolbox.py', '.'), ('breeze_bridge.py', '.'), ('huashu_bridge.py', '.'), ('dubbing_alignment.py', '.'), ('assets', 'assets'), ('runtime/ffmpeg.exe', 'runtime'), ('runtime/audio-review', 'runtime/audio-review')],
-    hiddenimports=['skill_loader', 'shotcraft_bridge', 'whole_film_renderer', 'local_storage', 'audio_contract', 'model_seeds', 'film_filter', 'external_toolbox', 'huashu_bridge', 'webview.platforms.edgechromium'],
-    hookspath=[],
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[str(ROOT / "pyinstaller_hooks")],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['PySide6', 'PyQt6', 'matplotlib', 'scipy', 'pandas', 'tkinter'],
+    # 明确排除 Java 相关与体积大且用不到的库，避免误打包。
+    excludes=[
+        "tkinter",
+        "matplotlib",
+        "scipy",
+        "pandas",
+        "PyQt5",
+        "PyQt6",
+        "PySide6",
+        "pytest",
+    ],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
     noarchive=False,
-    optimize=0,
 )
-pyz = PYZ(a.pure)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
     [],
     exclude_binaries=True,
-    name='CDTV',
+    name="CDTV",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/app-icon.ico',
+    icon=str(ROOT / "assets" / "app-icon.ico"),
 )
+
 coll = COLLECT(
     exe,
     a.binaries,
+    a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
-    name='CDTV',
+    name="CDTV",
 )

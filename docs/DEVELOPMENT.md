@@ -96,7 +96,7 @@ Mac 使用原生窗口边框进行拖动和缩放；文件与目录使用 Finder
 
 ## 打包为 exe
 
-项目已提供 `launcher.spec`，用 PyInstaller 打包为 Windows 可执行文件（目录模式）：
+项目已提供 `CDTV.spec`，用 PyInstaller 打包为 Windows 可执行文件（目录模式）：
 
 ```powershell
 # 1. 先构建前端
@@ -108,7 +108,7 @@ cd ..
 .venv\Scripts\python -m pip install pyinstaller
 
 # 3. 打包
-.venv\Scripts\python -m PyInstaller launcher.spec --noconfirm --clean
+.venv\Scripts\python -m PyInstaller CDTV.spec --noconfirm --clean
 ```
 
 
@@ -116,7 +116,8 @@ cd ..
 
 - 目标机器需安装 **WebView2 Runtime**，否则 pywebview 无法启动。
 - 不再需要 Java 运行时，也不需要 storage jar。
-- Playwright 驱动随 exe 打包；浏览器内核复用 `runtime/chrome-win64`。
+- Playwright Node 驱动随 exe 打包；为避免安装包重复膨胀，`.local-browsers` 不打包，浏览器内核复用与 exe 同级的 `runtime/chrome-win64`（可选）。
+- 字幕/配音校对所需 `runtime/audio-review` 与 `runtime/ffprobe.exe` 会打入 `_internal/runtime`；整片渲染可选地在 `motion_runtime/node.exe` 放置便携 Node.js。
 
 ## 本地回归验证
 
@@ -146,7 +147,8 @@ comoc-drama-client/
 ├─ local_storage.py       # 内置纯 Python 本地存储服务（SQLite + 文件桶）
 ├─ media_server.py        # 本地媒体预览服务
 ├─ constants.py           # 共享常量与路径
-├─ launcher.spec          # PyInstaller 打包配置
+├─ CDTV.spec              # PyInstaller 打包配置（Windows）
+├─ pyinstaller_hooks/     # 自定义打包钩子（裁剪 Playwright 重复浏览器）
 ├─ SKILL/                 # AI 分镜创作能力定义（SKILL.md + references/）
 ├─ frontend/              # Vue 3 前端
 ├─ assets/                # 应用图标

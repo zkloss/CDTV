@@ -54,7 +54,7 @@
 
 ## 快速上手
 
-1. **启动客户端**：已有打包版本时运行 `CDTV.exe`；源码运行按 [开发指南](docs/DEVELOPMENT.md) 安装依赖并启动。
+1. **启动客户端**：Windows 用户可直接运行 Release 中的 `CDTV_Setup_*.exe`，按向导选择安装目录即可；已有绿色版时运行 `CDTV.exe`；源码运行按 [开发指南](docs/DEVELOPMENT.md) 安装依赖并启动。
    Mac 已加入适配代码，按步骤操作见 [Mac 用户安装说明](docs/MAC_SETUP.md)，开发与构建细节见 [macOS 运行与打包](docs/DEVELOPMENT.md#macos-运行与打包)。
 2. **建立项目**：创建项目和章节，编辑 Markdown 剧本，添加本地素材。
 3. **准备分镜**：建立视频创作任务，逐条填写分镜，或通过创作数据 JSON 一键导入。

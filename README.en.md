@@ -44,7 +44,7 @@ A local desktop application built with Vue 3, pywebview, Python, and Playwright 
 
 ## Getting Started
 
-1. **Start the client**: run `CDTV.exe` from a release package, or follow the [development guide](docs/DEVELOPMENT.en.md) to run from source.
+1. **Start the client**: on Windows, run `CDTV_Setup_*.exe` from Releases and choose an installation directory; or run `CDTV.exe` from a portable package, or follow the [development guide](docs/DEVELOPMENT.en.md) to run from source.
 2. **Create a project**: organize chapters, edit the Markdown script, and add local assets.
 3. **Prepare storyboards**: create a video task and edit shots, or import creation-data JSON.
 4. **Configure model APIs**: the model library starts empty (clean open-source defaults, no preset relays). Add text / image / video / audio models under Settings → Model Management; entering an API URL can fetch remote model lists, or use the one-click workflow presets.

@@ -57,7 +57,7 @@ Then open another terminal **at the project root**:
 
 ## Packaging as an EXE
 
-A `launcher.spec` is provided; package it as a Windows executable with PyInstaller (directory mode):
+A `CDTV.spec` is provided; package it as a Windows executable with PyInstaller (directory mode):
 
 ```powershell
 # 1. Build the frontend first
@@ -69,7 +69,7 @@ cd ..
 .venv\Scripts\python -m pip install pyinstaller
 
 # 3. Package
-.venv\Scripts\python -m PyInstaller launcher.spec --noconfirm --clean
+.venv\Scripts\python -m PyInstaller CDTV.spec --noconfirm --clean
 ```
 
 The output is in `dist/CDTV/`. Distribute the entire directory, including PyInstaller dependencies, rather than the exe alone. `data/` and `output/` are created next to the exe on first run.
@@ -78,6 +78,8 @@ Notes:
 
 - The target machine needs **WebView2 Runtime**, otherwise pywebview cannot start.
 - No Java runtime and no storage jar are required.
+- The Playwright Node driver is bundled, while `.local-browsers` is excluded to avoid duplicate browser payloads. Browser automation reuses `runtime/chrome-win64` next to the EXE (optional).
+- `runtime/audio-review` and `runtime/ffprobe.exe` are packed into `_internal/runtime`; an optional portable Node.js can be placed at `motion_runtime/node.exe` for full-film rendering.
 
 ## Troubleshooting
 
@@ -95,7 +97,8 @@ comoc-drama-client/
 ├─ local_storage.py       # Built-in pure-Python local storage service (SQLite + file bucket)
 ├─ media_server.py        # Local media preview server
 ├─ constants.py           # Shared constants and paths
-├─ launcher.spec          # PyInstaller packaging config
+├─ CDTV.spec              # PyInstaller packaging config (Windows)
+├─ pyinstaller_hooks/     # Custom hooks (trim duplicate Playwright browsers)
 ├─ SKILL/                 # AI storyboard capability definitions (SKILL.md + references/)
 ├─ frontend/              # Vue 3 frontend
 ├─ assets/                # App icons
