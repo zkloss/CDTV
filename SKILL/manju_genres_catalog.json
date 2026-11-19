@@ -1,0 +1,212 @@
+[
+  {
+    "id": "xuanhuan",
+    "folder": "xuanhuan-manju",
+    "name": "玄幻修仙",
+    "category": "幻想",
+    "icon": "🗡️",
+    "desc": "东方暗黑玄幻国漫，废柴逆袭修仙、宗门争霸、境界飞升、高燃斗法与天地法则",
+    "defaultStyle": "3d-xiuxian",
+    "pacing": "文戏稳，战斗碎。对峙和蓄力用长镜压住，交手用3–5秒短镜连切，大招前留一拍静"
+  },
+  {
+    "id": "xihuan",
+    "folder": "xihuan-manju",
+    "name": "西幻魔法",
+    "category": "幻想",
+    "icon": "🧙",
+    "desc": "西方奇幻史诗，剑与魔法、巨龙骑士、学院秘法探寻、深渊魔物与血脉觉醒",
+    "defaultStyle": "3d-myth",
+    "pacing": "咒语吟唱起势，魔法阵展开，高能元素爆炸与战技近身连击"
+  },
+  {
+    "id": "xingji",
+    "folder": "xingji-manju",
+    "name": "星际机甲",
+    "category": "幻想",
+    "icon": "🚀",
+    "desc": "硬核科幻与深空歌剧，动力装甲、神经接驳、虫族入侵、星舰对轰与文明存亡",
+    "defaultStyle": "tech-future",
+    "pacing": "机械装甲喷射推进，HUD瞄准锁定，重火力和粒子光束对射，空间翻滚失重"
+  },
+  {
+    "id": "xitong",
+    "folder": "xitong-manju",
+    "name": "系统无限流",
+    "category": "幻想",
+    "icon": "🎮",
+    "desc": "主神空间与诸天穿越，悬浮发光任务面板、属性数值加点、规则副本生化逃杀",
+    "defaultStyle": "anime-action",
+    "pacing": "面板弹出音效与属性暴涨视觉化，副本倒计时紧迫压迫，危机绝境秒加点破局"
+  },
+  {
+    "id": "moshi",
+    "folder": "moshi-manju",
+    "name": "末日废土",
+    "category": "幻想",
+    "icon": "☣️",
+    "desc": "丧尸围城与极限求生，低饱和废土冷光、末世物资搜集、庇护所建设与人性博弈",
+    "defaultStyle": "real-mystery",
+    "pacing": "压抑静止环境声，突发嘶吼破门，狭窄空间近身格斗，重型防线火力倾泻"
+  },
+  {
+    "id": "chuanyue",
+    "folder": "chuanyue-manju",
+    "name": "穿越重生",
+    "category": "古代",
+    "icon": "⏳",
+    "desc": "古今认知降维打击，现代科技思维碰撞古代封建礼法，逆转宿命命运",
+    "defaultStyle": "real-era",
+    "pacing": "身份互换惊慌定格，现代知识出人意料反转，打脸愚昧对手一气呵成"
+  },
+  {
+    "id": "gongdou",
+    "folder": "gongdou-manju",
+    "name": "宫斗",
+    "category": "古代",
+    "icon": "👑",
+    "desc": "深宫红墙暗流涌动，步步惊心心机试探、借刀杀人、册封进阶与权倾后宫",
+    "defaultStyle": "real-era",
+    "pacing": "眼神言语机锋交锋，特写微表情与手部小动作，伏笔揭晓反客为主"
+  },
+  {
+    "id": "zhaidou",
+    "folder": "zhaidou-manju",
+    "name": "宅斗",
+    "category": "古代",
+    "icon": "🪭",
+    "desc": "豪门主母掌家理账，庶女逆袭自强、撕碎伪善亲眷、夺回家产与恩怨分明",
+    "defaultStyle": "real-era",
+    "pacing": "账簿凭证当面对质，当堂搜查人赃并获，主母威仪雷霆处置"
+  },
+  {
+    "id": "quanmou",
+    "folder": "quanmou-manju",
+    "name": "权谋朝堂",
+    "category": "古代",
+    "icon": "🏛️",
+    "desc": "帝王将相庙堂对决，连环智计、暗卫刺探、兵法奇策、荡平奸佞夺嫡称尊",
+    "defaultStyle": "real-era",
+    "pacing": "大殿之上奏折呈递，群臣对峙唇枪舌剑，外围重兵合围终局收束"
+  },
+  {
+    "id": "wuxia",
+    "folder": "wuxia-manju",
+    "name": "武侠江湖",
+    "category": "古代",
+    "icon": "🎋",
+    "desc": "快意恩仇水墨江湖，竹林飞檐、刀剑如梦、门派争锋、绝世秘籍与侠骨柔情",
+    "defaultStyle": "3d-wuxia",
+    "pacing": "剑拔弩张风吹草动，踏风借力刀光残影，虚实变招内力外放收发自如"
+  },
+  {
+    "id": "zhongtian",
+    "folder": "zhongtian-manju",
+    "name": "种田经商",
+    "category": "古代",
+    "icon": "🌾",
+    "desc": "古代开荒温情致富，炊烟袅袅农家院落、研发特色美食、开办商号慢慢崛起",
+    "defaultStyle": "real-era",
+    "pacing": "耕作经营劳动充实感，美食烹饪微距特写，银两入袋丰收喜悦"
+  },
+  {
+    "id": "dushi",
+    "folder": "dushi-manju",
+    "name": "都市逆袭",
+    "category": "现代",
+    "icon": "🏙️",
+    "desc": "草根崛起商业大鳄，隐匿神医鉴宝无双、强势打脸反扑、执掌财阀风云",
+    "defaultStyle": "real-urban",
+    "pacing": "前期受辱隐忍蓄力，亮出绝世身份/真迹，全场惊骇悔恨交加"
+  },
+  {
+    "id": "tianchong",
+    "folder": "tianchong-manju",
+    "name": "总裁甜宠",
+    "category": "现代",
+    "icon": "🍬",
+    "desc": "高冷霸总反差独宠，豪门契约双向奔赴、细腻眼神拉丝、甜蜜暴击与无条件偏爱",
+    "defaultStyle": "real-urban",
+    "pacing": "壁咚近距离特写，低音耳语心跳加速，外人面前强势护短"
+  },
+  {
+    "id": "jiating",
+    "folder": "jiating-manju",
+    "name": "家庭伦理",
+    "category": "现代",
+    "icon": "🏡",
+    "desc": "现实主义市井温情与矛盾冲突，房产争夺、代际观念碰撞、破局守护与血脉亲情",
+    "defaultStyle": "real-urban",
+    "pacing": "餐桌日常暗藏玄机，争吵激化拍案而起，平息后温情反思泪点"
+  },
+  {
+    "id": "chongsheng",
+    "folder": "chongsheng-manju",
+    "name": "重生复仇",
+    "category": "现代",
+    "icon": "🔥",
+    "desc": "前世含冤洞察先机，步步为营设局请君入瓮、夺回资产、亲手撕碎背叛者",
+    "defaultStyle": "real-urban",
+    "pacing": "前世惨状闪回对比，冷笑布局掌控全局，渣男恶女自食恶果当众溃败"
+  },
+  {
+    "id": "shangzhan",
+    "folder": "shangzhan-manju",
+    "name": "职场商战",
+    "category": "现代",
+    "icon": "💼",
+    "desc": "金融资本顶峰博弈，项目竞标暗流、背叛与反间计、危机公关与翻盘登顶",
+    "defaultStyle": "real-urban",
+    "pacing": "股市大盘剧烈起伏，发布会PPT高燃亮剑，底牌掏出一击必杀"
+  },
+  {
+    "id": "niandai",
+    "folder": "niandai-manju",
+    "name": "年代文",
+    "category": "现代",
+    "icon": "📻",
+    "desc": "七八十年代复古情怀，绿皮火车大院炊烟、下海弄潮改革风雷、坚韧奋斗时代芳华",
+    "defaultStyle": "real-era",
+    "pacing": "年代老物件生活气息，集市摆摊敢为人先，时代浪潮中白手起家"
+  },
+  {
+    "id": "yule",
+    "folder": "yule-manju",
+    "name": "娱乐圈",
+    "category": "现代",
+    "icon": "🎤",
+    "desc": "聚光灯下顶流争锋，练习生逆风翻盘、红毯视效碾压、实力打脸黑通稿问鼎影坛",
+    "defaultStyle": "real-urban",
+    "pacing": "舞台直拍高光炸场，录音棚爆发开嗓，颁奖典礼定格封神"
+  },
+  {
+    "id": "xiaoyuan",
+    "folder": "xiaoyuan-manju",
+    "name": "大学校园青春",
+    "category": "现代",
+    "icon": "🎓",
+    "desc": "青春明快校园记忆，林荫道自行车、社团逐梦、图书馆微甜暗恋与热血追寻",
+    "defaultStyle": "anime-school",
+    "pacing": "阳光树影微风拂面，操场奔跑挥洒汗水，毕业季离别与重逢"
+  },
+  {
+    "id": "xuanyi",
+    "folder": "xuanyi-manju",
+    "name": "悬疑刑侦",
+    "category": "类型片",
+    "icon": "🔍",
+    "desc": "冷峻硬核推理刑侦，密室谜案、现场物证痕检、微表情心理战与剥茧抽丝真凶落网",
+    "defaultStyle": "real-mystery",
+    "pacing": "手电筒光柱扫视现场，心跳音效与线索拼图飞速重组，审讯室心理防线崩溃"
+  },
+  {
+    "id": "minsu",
+    "folder": "minsu-manju",
+    "name": "民俗怪谈",
+    "category": "类型片",
+    "icon": "🏮",
+    "desc": "中式恐怖与民俗异闻，幽暗纸扎红灯笼、民俗禁忌调查、规则类诡异探秘与民调档案",
+    "defaultStyle": "real-mystery",
+    "pacing": "寂静夜半鸡鸣犬吠，红白撞色视觉冲击，违反规则惊悚突袭与生路破解"
+  }
+]
