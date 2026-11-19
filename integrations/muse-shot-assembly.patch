@@ -1,0 +1,103 @@
+--- a/src/muse2api/drivers/browser/driver.py
++++ b/src/muse2api/drivers/browser/driver.py
+@@ -390,13 +390,15 @@
+         if images:
+             await asyncio.sleep(1.0)
+ 
+-    async def _send(self, tab: _Tab, prompt: str) -> None:
++    async def _send(self, tab: _Tab, prompt: str, *, verify_ack: bool = False) -> None:
+         res = await tab.session.evaluate(dom.fill_input(prompt))
+         if not (res or {}).get("ok"):
+             raise UpstreamError(f"cannot fill chat input: {(res or {}).get('err')}")
+         deadline = time.monotonic() + 5
+         while time.monotonic() < deadline:
+             if await tab.session.evaluate(dom.CLICK_SEND) == "clicked":
++                if verify_ack:
++                    await self._wait_send_ack(tab)
+                 return
+             await asyncio.sleep(0.1)
+         for kind in ("keyDown", "keyUp"):
+@@ -407,7 +409,22 @@
+             )
+         await asyncio.sleep(0.5)
+         if not await tab.session.evaluate(dom.INPUT_EMPTY):
++            if verify_ack:
++                await self._wait_send_ack(tab)
++                return
+             raise UpstreamError("send button not found and Enter did not submit")
++
++    async def _wait_send_ack(self, tab: _Tab) -> None:
++        deadline = time.monotonic() + 20
++        while time.monotonic() < deadline:
++            if await tab.session.evaluate(dom.INPUT_EMPTY):
++                return
++            await asyncio.sleep(.25)
++        # Clicking is not evidence of a submission. Never fail over and dispatch
++        # another paid request while the upstream receipt remains uncertain.
++        error = UpstreamError("send_unconfirmed: Muse发送回执未确认，请核对原对话，勿重复组片", code="send_unconfirmed")
++        error.retryable = False
++        raise error
+ 
+     async def _state(self, tab: _Tab) -> dict:
+         state = await tab.session.evaluate(dom.CHAT_STATE) or {}
+@@ -430,11 +447,14 @@
+                          tab.thread_url or "new thread", snippet)
+         return state
+ 
+-    async def _prepare(self, tab: _Tab, prompt: str, images: list[InputImage]) -> dict:
++    async def _prepare(self, tab: _Tab, prompt: str, images: list[InputImage], *, verify_ack: bool = False) -> dict:
+         await self._new_thread(tab)
+         base = await self._state(tab)
+         await self._attach(tab, images)
+-        await self._send(tab, prompt)
++        if verify_ack:
++            await self._send(tab, prompt, verify_ack=True)
++        else:
++            await self._send(tab, prompt)
+         return base
+ 
+     async def _deny_approvals(self, tab: _Tab) -> None:
+@@ -708,16 +728,31 @@
+                            width=att.get("w") or None, height=att.get("h") or None)
+ 
+     async def _generate(self, account: Account, prompt: str, images: list[InputImage],
+-                        kind: str, timeout: float, on_progress, cancel) -> MediaResult:
++                        kind: str, timeout: float, on_progress, cancel, *, verify_ack: bool = False) -> MediaResult:
+         # Media always starts a fresh thread, so keep tabs holding a chat for chats.
+         tab = await self._checkout(account, prefer=lambda t: not t.has_state)
+         try:
+-            base = await self._prepare(tab, prompt, images)
++            if verify_ack:
++                base = await self._prepare(tab, prompt, images, verify_ack=True)
++            else:
++                base = await self._prepare(tab, prompt, images)
+             att = await self._wait_media(tab, base, kind, timeout, on_progress, cancel)
+             return await self._download(tab, att, kind)
+         except CDPError as exc:
+             await self._close_tab(tab)
+-            raise UpstreamError(f"browser error: {exc}") from exc
++            error = UpstreamError(f"browser error: {exc}")
++            if verify_ack:
++                error.code = 'assembly_result_unconfirmed'
++                error.message = 'Muse组片回执或交付未确认，请核对原对话，勿重复提交'
++                error.retryable = False
++            raise error from exc
++        except UpstreamError as exc:
++            if verify_ack:
++                exc.retryable = False
++                if isinstance(exc, UpstreamTimeout):
++                    exc.code = 'assembly_result_unconfirmed'
++                    exc.message = 'Muse组片交付暂未确认，请核对原对话，勿重复提交'
++            raise
+         finally:
+             await self._checkin(tab)
+ 
+@@ -741,7 +776,7 @@
+         images = req.reference_images or ([req.first_frame] if req.first_frame else [])
+         images = [*images, *req.reference_videos]
+         return await self._generate(account, prompt, images, "video", req.timeout,
+-                                    req.on_progress, req.cancel)
++                                    req.on_progress, req.cancel, **({'verify_ack': True} if req.production_mode == 'assemble' else {}))
+ 
+     # ------------------------------------------------------------ session
+     async def renew_session(self, account: Account) -> SessionInfo:

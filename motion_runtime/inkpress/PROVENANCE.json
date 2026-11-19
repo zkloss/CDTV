@@ -1,0 +1,121 @@
+{
+  "source": "https://github.com/Vincentwei1021/video-shotcraft",
+  "bundledSource": "SKILL/video-shotcraft/template/src",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "file": "aifl/Caption.tsx",
+      "upstreamSha256": "c364ad6e6c57fc53cc70b1b20f4c120efd6128038977668ed492ac76b2b12c0c",
+      "adaptedSha256": "d61e4bd631bbad72d5a065fb7cf055660999857e20c6d78819ee5b5000ac774d",
+      "modified": true
+    },
+    {
+      "file": "aifl/DigitRoll.tsx",
+      "upstreamSha256": "5a7764a0d290a4e4da86b757a8a945f5f727d3f3831ee5c0f230e201c73c0081",
+      "adaptedSha256": "bc3f27c0333bccbc8f02fdf1feed69ee8fdf6198550d0a1388881fecaf3114fe",
+      "modified": true
+    },
+    {
+      "file": "aifl/FlashCut.tsx",
+      "upstreamSha256": "5bf94f14c44073f2190058a12cebbd9745c9e20af5ec5fc826354ecc2e2b61f2",
+      "adaptedSha256": "2bb5782c29fb8fc6bbeaef11a437421b7e2ad67ad06eea42ad77f0455c97d5d4",
+      "modified": true
+    },
+    {
+      "file": "aifl/live-layout.json",
+      "upstreamSha256": "8db053585b4f06453d5795f31c42ce647ca4ccb7a0bcc9d1bfcf059bf89ddf52",
+      "adaptedSha256": "8db053585b4f06453d5795f31c42ce647ca4ccb7a0bcc9d1bfcf059bf89ddf52",
+      "modified": false
+    },
+    {
+      "file": "aifl/Main.tsx",
+      "upstreamSha256": "8cae93951c2563b5977a6fd153fd80924c8b4694fc7edaff71ea699bf4ea0041",
+      "adaptedSha256": "8cae93951c2563b5977a6fd153fd80924c8b4694fc7edaff71ea699bf4ea0041",
+      "modified": false
+    },
+    {
+      "file": "aifl/PaperTitleCard.tsx",
+      "upstreamSha256": "6d7c020fa93e1948ccdb7f744dc210c21346ceff8c35e6c8ba8fdf5a7abcdee0",
+      "adaptedSha256": "6d7c020fa93e1948ccdb7f744dc210c21346ceff8c35e6c8ba8fdf5a7abcdee0",
+      "modified": false
+    },
+    {
+      "file": "themes/manifest.tsx",
+      "upstreamSha256": "8bc9f91368919e954bff0b37bf5c0f7ad9906f96485aaa2396a79b65adf10bb5",
+      "adaptedSha256": "8bc9f91368919e954bff0b37bf5c0f7ad9906f96485aaa2396a79b65adf10bb5",
+      "modified": false
+    },
+    {
+      "file": "themes/palette-assets.json",
+      "upstreamSha256": "02590052e2bb374494a2596952d83e8bf62b558537837e99b6ea660dbc0bd1f0",
+      "adaptedSha256": "02590052e2bb374494a2596952d83e8bf62b558537837e99b6ea660dbc0bd1f0",
+      "modified": false
+    },
+    {
+      "file": "themes/palette-assets.ts",
+      "upstreamSha256": "f95e96134e19b15bcd79bcdea22a31ae722bbb51320e4632dd55a48d2f28abb4",
+      "adaptedSha256": "f95e96134e19b15bcd79bcdea22a31ae722bbb51320e4632dd55a48d2f28abb4",
+      "modified": false
+    },
+    {
+      "file": "themes/palettes.json",
+      "upstreamSha256": "c70f6ddbda81f404a794de72ae32b71e23ebd22f5dd30b3eddc1e09c9a2152a7",
+      "adaptedSha256": "c70f6ddbda81f404a794de72ae32b71e23ebd22f5dd30b3eddc1e09c9a2152a7",
+      "modified": false
+    },
+    {
+      "file": "themes/ThemedFilm.tsx",
+      "upstreamSha256": "31fcbaa4208271b4f24245431da6c8d132899bb9a943c4155319fcfb1df16a2d",
+      "adaptedSha256": "31fcbaa4208271b4f24245431da6c8d132899bb9a943c4155319fcfb1df16a2d",
+      "modified": false
+    },
+    {
+      "file": "themes/visual-theme.tsx",
+      "upstreamSha256": "7fe8ed2925ae2b03a88a681e8cf219d129f45bfcd96592c77e7da6e3a41eb8cd",
+      "adaptedSha256": "7fe8ed2925ae2b03a88a681e8cf219d129f45bfcd96592c77e7da6e3a41eb8cd",
+      "modified": false
+    },
+    {
+      "file": "aifl/live/PageCam.tsx",
+      "upstreamSha256": "4f9d82a43003bbb799d385b8831093c6abf6df92b99d10c5d25441fcf4380831",
+      "adaptedSha256": "c6f23d433d3aab90269e5c85cc6c434d188242dc8248ed808dba2cbf3fe598ef",
+      "modified": true
+    },
+    {
+      "file": "aifl/live/SceneDetail.tsx",
+      "upstreamSha256": "6f7fab844cd48143ce9edbd81671ec54cbc466fa0ec4f7678413e2df90558bd3",
+      "adaptedSha256": "b9c81f8fe980288a899e482805d5300e5b5c77ebf11c172ca281e01896b23d18",
+      "modified": true
+    },
+    {
+      "file": "aifl/live/SceneFlyIn.tsx",
+      "upstreamSha256": "fd6eeb10a10cf2da0f9e449234eb2096a718312338f750e4e58eb00c6d39a671",
+      "adaptedSha256": "d65c7f0961e1228d09a08ee49ca432461165223fa504c54422eaa1cb9763cdc4",
+      "modified": true
+    },
+    {
+      "file": "aifl/live/SceneOpen.tsx",
+      "upstreamSha256": "896c1124b8a098a40242c3f3ee1da434a8d244d51b53357f51847641259b161d",
+      "adaptedSha256": "1ec209d88cff7e11f77dd104e76a72c8a9e48e57d13d6c14e4ab488383253018",
+      "modified": true
+    },
+    {
+      "file": "aifl/live/SceneOutroLive.tsx",
+      "upstreamSha256": "d8466e88c09d700581229bd0e8fef8ffa2d4f80e8b28b9c161e35dc000bf21cf",
+      "adaptedSha256": "92265821262433bab3424f37a941399d0732e4548a27c0073eaad4ad0bd9628c",
+      "modified": true
+    },
+    {
+      "file": "aifl/live/ScenePapers.tsx",
+      "upstreamSha256": "402181d52a056b3f417cbf5f3813e49c10aa99f04cc8252c5e6d8370bda3f5c7",
+      "adaptedSha256": "5046188301bfd74878d400f43484f1a7e26cf3c15cd31ace6abbb8ceb3567b0f",
+      "modified": true
+    },
+    {
+      "file": "aifl/live/SceneWbr.tsx",
+      "upstreamSha256": "36e9487d7abeb93509290719eea06ed7701b95d8ebd4d295a74c52c084edd346",
+      "adaptedSha256": "7e608e8a8a254a115a86abd15137d9266b859910d73ab3358ca62ea12fc93543",
+      "modified": true
+    }
+  ]
+}

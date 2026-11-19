@@ -1,0 +1,16 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>独立补段 · 隔离检查</title></head><body><div id="app" style="max-width:960px;margin:30px auto"></div><script type="module">
+import {createApp,h,ref} from 'vue'
+import Panel from '/src/components/VerifiedAssemblyPanel.vue'
+import '/src/style.css'
+const data=window.__verifiedFixture
+window.__verifiedQA={requests:[],saved:null}
+window.pywebview={api:{backend_request:async(method,path,token,body)=>{
+ window.__verifiedQA.requests.push({method,path,body})
+ const response=await fetch('/__qa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+ const result=await response.json();if(!response.ok)throw Error(result.error);return result
+},select_local_video_file:async()=>({path:'isolated-test-candidate',name:'失败补段副本.mp4'}),
+upload_local_file:async()=>({id:data.badFileId}),save_server_video_as:async()=>({saved:true})}}
+createApp({setup(){const value=ref(data.value||{});return()=>h(Panel,{token:'isolated-fixture',projectId:data.projectId||'isolated-supermarket',
+ clips:data.clips,models:[{id:'fixture-muse',modelName:'muse-video',name:'Muse'}],textModels:data.textModels||[{id:'fixture-vision',modelName:'vision-fixture',name:'视觉分析（隔离替身）'}],value:value.value,
+ save:async v=>{window.__verifiedQA.saved=v;value.value=v},onEditShot:v=>{window.__verifiedQA.editShot=v},fileUrl:id=>`/file/${id}/download`})}}).mount('#app')
+</script></body></html>

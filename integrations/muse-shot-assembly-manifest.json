@@ -1,0 +1,11 @@
+{
+  "version": "2026.11.03-shot-assembly.1",
+  "deployed": true,
+  "syncedAtShanghai": "2026-11-03T10:44:22.276511+08:00",
+  "gatewayExecutable": "muse2api\\dist\\Muse2API\\Muse2API.exe",
+  "gatewayExeSha256": "6fff65b3e4b8b212636182ed77eb23d1e1762f7fad4f4570be5852b6d26e48cb",
+  "sourceDriverSha256": "78af34e5ec8e2cf245330574fc2361eaa553a9130b894c033ce96c4ed3cb8d1d",
+  "realAssemblyContentVerified": false,
+  "externalModelCalls": 0,
+  "evidenceDirectory": "backups\\shot-ai-assembly-sync-20261103"
+}

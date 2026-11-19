@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>连续预览隔离检查</title></head><body><div id="app"></div><script type="module">
+import {createApp,h,reactive} from 'vue'
+import Preview from '/src/components/FinishedVideoTrackPreview.vue'
+import '/src/style.css'
+const state=reactive({visible:true,videos:window.__trackClips})
+window.__trackState=state
+window.__trackErrors=[]
+createApp({render:()=>h(Preview,{...state,projectTitle:'实际五镜 · 隔离播放', 'onUpdate:visible':v=>state.visible=v, onVideoError:v=>window.__trackErrors.push(v.id)})}).mount('#app')
+</script></body></html>

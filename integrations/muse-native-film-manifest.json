@@ -1,0 +1,33 @@
+{
+  "deployed": true,
+  "files": [
+    {
+      "path": "src/muse2api/drivers/base.py",
+      "originalSha256": "258b0e573ae1054b4afbb908505f3bb4edeb2153d2a222ee48552d14411e94ef",
+      "patchedSha256": "84211fc495d0029b03b65e78d61ce851cc107333c89872090297c61fcc3e9adc"
+    },
+    {
+      "path": "src/muse2api/api/schemas.py",
+      "originalSha256": "e9c9fb733a955f11dbd5add0621c08b55f7f72cc16920a1fd30d7727eaaa824a",
+      "patchedSha256": "a0f5640c087c5cf74ea197ff0cb78aa314068393e288cde6dff14d1f65ffb3ce"
+    },
+    {
+      "path": "src/muse2api/api/routes/videos.py",
+      "originalSha256": "7626c0f8cc810f32c8f9a20c45b9d56e33a809aa4d3f4750396cf10951cbfd91",
+      "patchedSha256": "3b05a62f6a6f57527a7d09b460e9e872c18e16cbc337a1b5e235f8e62acbd794"
+    },
+    {
+      "path": "src/muse2api/drivers/browser/driver.py",
+      "originalSha256": "5ae3ed691a833d90f2efd21ba678c904b2d5c08458928e743dc86cc6f020090e",
+      "patchedSha256": "993ab52487fff7496c7a7c38865668e7738bf93f50337dc54f0d9d557e5053ac"
+    },
+    {
+      "path": "tests/test_native_film.py",
+      "originalSha256": null,
+      "patchedSha256": "4828bfb3d403c9060cdcdaad85b12c16dd5fd9b253cfbaeea86cee8547275c06"
+    }
+  ],
+  "deployedAtShanghai": "2026-11-03T08:51:45.124149+08:00",
+  "gatewayExecutable": "muse2api\\dist\\Muse2API\\Muse2API.exe",
+  "gatewayExeSha256": "19d9e70f601acfb63f7cbfd8c092cdbde2b12520d41d84097cd7aeccab648bff"
+}

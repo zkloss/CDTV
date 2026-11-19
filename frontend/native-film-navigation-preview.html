@@ -1,0 +1,29 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>原制作台导航 · 隔离验证</title></head><body><div id="app"></div><script type="module">
+import {createApp,h} from 'vue'
+import Workspace from '/src/components/VideoCreationWorkspace.vue'
+import '/src/style.css'
+import '/src/workspaceLayout.css'
+const data=window.__navigationFixture
+const copy=value=>JSON.parse(JSON.stringify(value))
+window.__fixtureRequests=[]
+window.pywebview={api:{list_tasks:async()=>[],backend_request:async(method,path,token,body)=>{
+ window.__fixtureRequests.push({method,path})
+ if(path==='/project/list')return copy(data.projects)
+ if(path.includes('/models/public/list'))return path.includes('modelType=video')?[{id:'qa-muse',modelName:'muse-video',name:'Muse 视频'}]:[]
+ if(path==='/video-project/list')return copy(data.tasks)
+ if(path.startsWith('/video-project/')){
+  const task=data.tasks.find(t=>String(t.id)===decodeURIComponent(path.split('/')[2]))
+  if(!task)throw Error('隔离任务不存在')
+  if(method==='PUT')Object.assign(task,copy(body))
+  return copy(task)
+ }
+ if(path.startsWith('/project/')&&path.endsWith('/chapter/list'))return copy(data.chapters.filter(ch=>String(ch.projectId)===decodeURIComponent(path.split('/')[2])))
+ if(path.startsWith('/project/'))return copy(data.projects.find(p=>String(p.id)===decodeURIComponent(path.split('/')[2]))||{})
+ throw Error('未提供隔离接口：'+path)
+}}}
+const embedded=new URLSearchParams(location.search).has('embedded')
+createApp({render:()=>h(Workspace,{token:'isolated-fixture',nativeFilmEnabled:true,
+ embedded,scopeProjectId:embedded?String(data.tasks[1].projectId):'',
+ initialVideoProjectId:embedded?String(data.tasks[1].id):'',
+ apiBase:location.origin,storageBase:location.origin})}).mount('#app')
+</script></body></html>

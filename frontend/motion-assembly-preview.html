@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>接点处理隔离核验</title></head><body><div id="app"></div><script type="module">
+import {createApp,h,reactive} from 'vue'
+import Preview from '/src/components/FinishedVideoTrackPreview.vue'
+import '/src/style.css'
+const state=reactive({visible:true,assemblyEnabled:true,projectId:'test-supermarket',videos:window.__motionFixture})
+window.__motionState=state
+window.pywebview={api:{backend_request:async(method,path,token,body)=>{const r=await fetch('/__motion-qa',{method:'POST',body:JSON.stringify(body)});return r.json()},save_server_video_as:async(...args)=>{window.__motionExport=args;return {path:'isolated-export.mp4'}}}}
+createApp({render:()=>h(Preview,{...state,projectTitle:'接点处理 · 隔离核验',fileUrl:id=>'/__motion-video/'+id,'onUpdate:visible':v=>state.visible=v})}).mount('#app')
+</script></body></html>
