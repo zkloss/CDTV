@@ -1,0 +1,240 @@
+--- a/src/muse2api/drivers/base.py
++++ b/src/muse2api/drivers/base.py
+@@ -54,7 +54,7 @@
+ 
+ 
+ @dataclass
+-class VideoRequest:
++class VideoRequest:
+     prompt: str
+     model: str
+     size: str | None = None
+@@ -63,8 +63,10 @@
+     timeout: float = 600.0
+     on_progress: ProgressCallback | None = None
+     cancel: asyncio.Event | None = None
+-    reference_images: list[InputImage] = field(default_factory=list)
+-    """All ordered image references; the first is also exposed as first_frame."""
++    reference_images: list[InputImage] = field(default_factory=list)
++    """All ordered image references; the first is also exposed as first_frame."""
++    production_mode: str = "shot"
++    reference_videos: list[InputImage] = field(default_factory=list)
+ 
+ 
+ @dataclass
+--- a/src/muse2api/api/schemas.py
++++ b/src/muse2api/api/schemas.py
+@@ -49,15 +49,27 @@
+     user: str | None = None
+ 
+ 
+-class VideoCreateRequest(_Lenient):
++class VideoCreateRequest(_Lenient):
+     prompt: str = Field(min_length=1)
+     model: str | None = None
+     size: str | None = None
+-    duration: int | None = Field(default=None, ge=1, le=60)
+-    seconds: int | None = Field(default=None, ge=1, le=60)
++    duration: int | None = Field(default=None, ge=1, le=3600)
++    seconds: int | None = Field(default=None, ge=1, le=3600)
++    production_mode: Literal["shot", "scene", "assemble"] = "shot"
++    videos: list[str] = Field(default_factory=list, max_length=12)
+     image: str | list[str] | None = Field(default=None, description="Reference image(s) as data URL or http(s) URL")
+     input_reference: str | None = None
+-    images: list[str] = Field(default_factory=list)
++    images: list[str] = Field(default_factory=list)
++
++    @model_validator(mode="after")
++    def check_production_mode(self):
++        if self.production_mode == "shot" and ((self.duration or self.seconds or 0) > 60 or self.videos):
++            raise ValueError("shot mode supports at most 60 seconds and image references only")
++        if self.production_mode == "assemble" and len(self.videos) < 2:
++            raise ValueError("assembly requires at least two video inputs")
++        if self.production_mode == "scene" and self.videos:
++            raise ValueError("use assemble mode for existing videos")
++        return self
+ 
+     @model_validator(mode="before")
+     @classmethod
+--- a/src/muse2api/api/routes/videos.py
++++ b/src/muse2api/api/routes/videos.py
+@@ -7,7 +7,7 @@
+ from pydantic import ValidationError
+ from starlette.datastructures import UploadFile
+ 
+-from ...core.media import load_image_ref, validate_reference_count
++from ...core.media import load_image_ref, validate_reference_count
+ from ...core.models import resolve_model
+ from ...drivers.base import InputImage, ProgressCallback, VideoRequest
+ from ...errors import InvalidRequest, NotFound
+@@ -16,7 +16,34 @@
+ from ..deps import get_services, public_base, require_api_key
+ from ..schemas import VideoCreateRequest
+ 
+-router = APIRouter(tags=["videos"], dependencies=[Depends(require_api_key)])
++router = APIRouter(tags=["videos"], dependencies=[Depends(require_api_key)])
++
++
++@router.get("/v1/video-capabilities")
++async def video_capabilities(svc: Services = Depends(get_services)) -> dict:
++    return {"native_film_version": 1,
++            "production_modes": ["shot", "scene", "assemble"] if svc.driver.name in {"browser", "mock"} else ["shot"],
++            "max_video_inputs": 12, "max_video_bytes": 64 * 1024 * 1024}
++
++
++def load_video(ref: str) -> InputImage:
++    # CDTV resolves authenticated local files before sending. Never fetch a
++    # caller-supplied private URL or treat a path as permission to read a file.
++    if not ref.startswith("data:video/") or ";base64," not in ref:
++        raise InvalidRequest("video inputs must be video data URLs")
++    header, payload = ref.split(",", 1)
++    if len(payload) > 90 * 1024 * 1024:
++        raise InvalidRequest("video input exceeds 64 MiB")
++    try:
++        data = base64.b64decode(payload, validate=True)
++    except ValueError as exc:
++        raise InvalidRequest("invalid video base64") from exc
++    if not data or len(data) > 64 * 1024 * 1024:
++        raise InvalidRequest("video input is empty or exceeds 64 MiB")
++    mime = header[5:].split(";")[0]
++    if mime not in {"video/mp4", "video/webm", "video/quicktime", "video/x-matroska", "video/x-msvideo", "video/x-m4v"}:
++        raise InvalidRequest("unsupported video MIME type")
++    return InputImage(data, mime)
+ _REQUEST_BODY = {"requestBody": {"required": True, "content": {
+     "application/json": {"schema": VideoCreateRequest.model_json_schema()},
+     "multipart/form-data": {"schema": {
+@@ -31,11 +58,13 @@
+ async def _run(body: VideoCreateRequest, first_frame: InputImage | None, base: str,
+                svc: Services, *, cancel: asyncio.Event | None = None,
+                on_progress: ProgressCallback | None = None,
+-               reference_images: list[InputImage] | None = None) -> dict:
++               reference_images: list[InputImage] | None = None) -> dict:
+     spec = resolve_model(body.model, "video")
+     req = VideoRequest(prompt=body.prompt, model=spec.id, size=body.size,
+                        duration=body.duration or body.seconds, first_frame=first_frame,
+-                       reference_images=reference_images or [],
++                       reference_images=reference_images or [],
++                       production_mode=body.production_mode,
++                       reference_videos=[load_video(ref) for ref in body.videos],
+                        timeout=svc.settings.video_timeout, on_progress=on_progress, cancel=cancel)
+     result = await svc.gateway.generate_video(req)
+     name = svc.media.save(result.data, result.mime, prefix="vid", prompt=body.prompt)
+@@ -102,7 +131,11 @@
+     spec = resolve_model(body.model, "video")
+     request.state.model = body.model or spec.id
+     validate_reference_count(len(body.images), svc.settings.max_reference_images)
+-    refs = [InputImage(*(await load_image_ref(ref))) for ref in body.images]
++    refs = [InputImage(*(await load_image_ref(ref))) for ref in body.images]
++    # Validate before charging/queueing; malformed inputs never become tasks.
++    video_refs = [load_video(ref) for ref in body.videos]
++    if sum(len(v.data) for v in video_refs) + sum(len(v.data) for v in refs) > 128 * 1024 * 1024:
++        raise InvalidRequest("combined inputs exceed 128 MiB")
+     first_frame = refs[0] if refs else None
+     base = public_base(request)
+ 
+@@ -111,7 +144,8 @@
+ 
+     request_meta = {"model": spec.id, "prompt": body.prompt, "size": body.size,
+                     "duration": body.duration or body.seconds, "has_first_frame": bool(first_frame),
+-                    "reference_image_count": len(refs)}
++                    "reference_image_count": len(refs), "production_mode": body.production_mode,
++                    "reference_video_count": len(body.videos)}
+     task = svc.tasks.submit("video", request_meta, runner)
+     request.state.task_id = task.id
+     return _task_view(task)
+--- a/src/muse2api/drivers/browser/driver.py
++++ b/src/muse2api/drivers/browser/driver.py
+@@ -381,12 +381,12 @@
+     # ------------------------------------------------------------ input
+     async def _attach(self, tab: _Tab, images: list[InputImage]) -> None:
+         for idx, img in enumerate(images):
+-            ext = img.mime.split("/")[-1].replace("jpeg", "jpg")
++            ext = {"video/quicktime": "mov", "video/x-matroska": "mkv", "video/x-msvideo": "avi"}.get(img.mime, img.mime.split("/")[-1].replace("jpeg", "jpg"))
+             res = await tab.session.evaluate(
+                 dom.attach_file(base64.b64encode(img.data).decode(), img.mime, f"input_{idx}.{ext}")
+             )
+             if not (res or {}).get("ok"):
+-                raise UpstreamError(f"failed to attach image: {(res or {}).get('err')}")
++                raise UpstreamError(f"failed to attach reference media: {(res or {}).get('err')}")
+         if images:
+             await asyncio.sleep(1.0)
+ 
+@@ -731,9 +731,15 @@
+             results.append(r)
+         return results
+ 
+-    async def generate_video(self, account: Account, req: VideoRequest) -> MediaResult:
+-        prompt = self._media_prompt(req.prompt, "video", req.size, req.duration)
+-        images = req.reference_images or ([req.first_frame] if req.first_frame else [])
++    async def generate_video(self, account: Account, req: VideoRequest) -> MediaResult:
++        if req.production_mode == "shot":
++            prompt = self._media_prompt(req.prompt, "video", req.size, req.duration)
++        else:
++            task = "Create the full film from the complete script, generating segments and assembling them as needed" if req.production_mode == "scene" else "Edit and assemble all attached source videos into a coherent finished film. You may trim clips, adjust cut points, add transitions (cuts, dissolves, J-cuts, L-cuts), retime action slightly, and generate brief bridging shots where necessary to fix continuity, while preserving characters, plot facts, key dialogue and not replacing source material with unrelated footage"
++            hints = (f" Aspect ratio {req.size}." if req.size else "") + (f" Target duration {req.duration} seconds." if req.duration else "")
++            prompt = f"{task}.{hints} Return the final video file as one attachment.\n{req.prompt}"
++        images = req.reference_images or ([req.first_frame] if req.first_frame else [])
++        images = [*images, *req.reference_videos]
+         return await self._generate(account, prompt, images, "video", req.timeout,
+                                     req.on_progress, req.cancel)
+ 
+--- /dev/null
++++ b/tests/test_native_film.py
+@@ -0,0 +1,57 @@
++import base64
++import asyncio
++from unittest.mock import AsyncMock
++
++import pytest
++
++from muse2api.api.schemas import VideoCreateRequest
++from muse2api.drivers.base import InputImage, VideoRequest
++from muse2api.drivers.browser.driver import BrowserDriver
++from muse2api.accounts import Account
++from test_video_endpoints import wait_for_video
++
++
++def test_native_mode_schema():
++    assert VideoCreateRequest(prompt='full story', duration=120, production_mode='scene').duration == 120
++    with pytest.raises(ValueError):
++        VideoCreateRequest(prompt='one shot', duration=120)
++    with pytest.raises(ValueError):
++        VideoCreateRequest(prompt='assemble', production_mode='assemble', videos=[])
++
++
++def test_native_video_upload_round_trip(client, auth, monkeypatch):
++    gateway = client.app.state.services.gateway
++    seen = []
++    original = gateway.generate_video
++    async def record(req):
++        seen.append(req)
++        return await original(req)
++    monkeypatch.setattr(gateway, 'generate_video', record)
++    videos = ['data:video/mp4;base64,' + base64.b64encode(v).decode() for v in [b'clip-a', b'clip-b']]
++    caps = client.get('/v1/video-capabilities', headers=auth).json()
++    assert 'assemble' in caps['production_modes']
++    response = client.post('/v1/videos/generations', headers=auth, json={
++        'prompt':'keep A then B', 'production_mode':'assemble', 'videos':videos})
++    assert response.status_code == 200, response.text
++    task = wait_for_video(client, auth, '/v1/videos/generations', response.json()['id'])
++    assert task['status'] == 'succeeded'
++    assert [v.data for v in seen[0].reference_videos] == [b'clip-a', b'clip-b']
++    metadata = client.app.state.services.tasks.get(task['id']).request
++    assert metadata['reference_video_count'] == 2 and 'base64' not in str(metadata)
++    for bad in ['http://127.0.0.1/private.mp4', 'data:video/mp4;base64,broken!']:
++        response = client.post('/v1/videos', headers=auth, json={
++            'prompt':'assemble', 'production_mode':'assemble', 'videos':[bad, videos[0]]})
++        assert response.status_code == 400
++
++
++@pytest.mark.parametrize('mode', ['scene', 'assemble'])
++def test_native_driver_omits_shot_wrapper(settings, monkeypatch, mode):
++    driver = BrowserDriver(settings)
++    produce = AsyncMock(return_value='result')
++    monkeypatch.setattr(driver, '_generate', produce)
++    source = InputImage(b'clip', 'video/mp4')
++    asyncio.run(driver.generate_video(Account(cookies={}), VideoRequest(
++        prompt='完整原文', model='muse-video', production_mode=mode, reference_videos=[source])))
++    args = produce.call_args.args
++    assert 'one continuous shot' not in args[1] and 'no montage' not in args[1]
++    assert '完整原文' in args[1] and args[2] == [source]
