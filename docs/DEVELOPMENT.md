@@ -117,6 +117,7 @@ cd ..
 - 目标机器需安装 **WebView2 Runtime**，否则 pywebview 无法启动。
 - 不再需要 Java 运行时，也不需要 storage jar。
 - Playwright Node 驱动随 exe 打包；为避免安装包重复膨胀，`.local-browsers` 不打包，浏览器内核复用与 exe 同级的 `runtime/chrome-win64`（可选）。
+- 生成安装包：在仓库根目录执行 `python -m PyInstaller CDTV.spec --noconfirm --clean`，再执行 `ISCC.exe installer\CDTV.iss`，产物位于 `installer\output\`。
 - 字幕/配音校对所需 `runtime/audio-review` 与 `runtime/ffprobe.exe` 会打入 `_internal/runtime`；整片渲染可选地在 `motion_runtime/node.exe` 放置便携 Node.js。
 
 ## 本地回归验证

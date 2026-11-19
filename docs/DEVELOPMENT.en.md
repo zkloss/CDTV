@@ -79,6 +79,7 @@ Notes:
 - The target machine needs **WebView2 Runtime**, otherwise pywebview cannot start.
 - No Java runtime and no storage jar are required.
 - The Playwright Node driver is bundled, while `.local-browsers` is excluded to avoid duplicate browser payloads. Browser automation reuses `runtime/chrome-win64` next to the EXE (optional).
+- To build the installer: run `python -m PyInstaller CDTV.spec --noconfirm --clean`, then `ISCC.exe installer\CDTV.iss`; output goes to `installer\output\`.
 - `runtime/audio-review` and `runtime/ffprobe.exe` are packed into `_internal/runtime`; an optional portable Node.js can be placed at `motion_runtime/node.exe` for full-film rendering.
 
 ## Troubleshooting
