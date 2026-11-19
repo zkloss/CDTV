@@ -1,0 +1,28 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>制作流程边界 · 隔离验证</title><style>body{margin:0;background:#faf8f4;font:14px system-ui;color:#332f2c;--theme-bg-card:#fff;--theme-bg-elevated:#f9f7f2;--theme-border-subtle:#ddd7ce;--theme-text-primary:#332f2c;--theme-text-secondary:#746c61;--theme-accent:#96713c;--theme-accent-soft:#f2e7d3}#controls{display:flex;gap:12px;align-items:center;padding:16px;border-bottom:1px solid #ddd7ce}#controls button{padding:8px 16px;cursor:pointer}#fixture-output{white-space:pre-wrap;padding:20px;font-size:11px}.gv-project-open{height:auto!important;min-height:800px}.gv-production-shell{min-height:700px}</style></head><body><div id="app"></div><pre id="fixture-output"></pre><script type="module">
+import {createApp,h,ref} from 'vue'
+import GeneralVideoStudio from '/src/components/GeneralVideoStudio.vue'
+import '/src/workspaceLayout.css'
+const script='【镜1-1】照相馆，学徒进门。\n对白：学徒：“师父，箱子到了。”'
+const projects=['template','shots'].map(kind=>({id:'qa-'+kind,name:kind==='template'?'原有整片模板作品':'需要分镜的视频作品',workspace:'general',type:'science',ratio:'16:9',productionBrief:{mode:kind==='template'?'template':'autonomous',production:kind==='template'?'motion':'ai_video',templateId:kind==='template'?'ink-press':'',duration:30}}))
+const chapter=project=>({id:project.id+'-chapter',title:'制作方案',script,workflow:{creationData:{shots:[{id:'s1',title:'进门',visual:'学徒进门',duration_s:10}]},videoProjectId:project.id+'-video'}})
+const tasks=projects.map(project=>({id:project.id+'-video',projectId:project.id,name:project.name,description:'章节 ID '+chapter(project).id,assets:[],storyboards:[{id:'s1',title:'进门',prompt:script,duration:10,references:[],inheritPrevTail:false}]}))
+const requests=[];let jobs=[]
+const plan={rendererVersion:2,title:'本地模板验证',duration:30,theme:'editorial',templateId:'ink-press',scenes:[{kind:'statement',title:'第一段',seconds:30,narration:'完整旁白。'}]}
+window.pywebview={api:{list_tasks:async()=>[],breeze_status:async()=>({ready:true,voices:[]}),backend_request:async(method,path,token,body)=>{
+requests.push({method,path,body});document.querySelector('#fixture-output').textContent=JSON.stringify(requests.filter(r=>r.method!=='GET'),null,2)
+if(path==='/project/list')return projects
+if(path==='/shotcraft/catalog')return {cards:[],templates:[],counts:{}}
+if(path.includes('/models/public/list'))return path.includes('modelType=video')?[{id:'qa-muse',modelName:'muse-video',name:'Muse 视频'}]:path.includes('modelType=text')?[{id:'qa-text',modelName:'fixture-text',name:'文本模型替身'}]:[]
+if(path==='/video-project/list')return tasks
+if(path.startsWith('/video-project/'))return tasks.find(t=>path.endsWith(t.id))
+if(path.startsWith('/project/')&&path.endsWith('/chapter/list'))return [chapter(projects.find(p=>path.includes(p.id)))]
+if(path.startsWith('/project/'))return projects.find(p=>path.endsWith(p.id))
+if(path==='/shotcraft/film/list')return jobs
+if(path==='/shotcraft/film/prepare')return {plan,warnings:[]}
+if(path==='/shotcraft/film/start'){const job={id:'qa-whole-film',status:'succeeded',plan,narration:body.narration};jobs=[job];return job}
+throw new Error('未提供此隔离接口：'+path)
+}}}
+createApp({setup(){const mode=ref('template');return()=>h('div',[
+h('div',{id:'controls'},[h('strong','仅本地替身 · 不调用真实账号'),h('button',{onClick:()=>{mode.value='template'}},'查看原整片流程'),h('button',{onClick:()=>{mode.value='shots'}},'查看分镜视频流程')]),
+h(GeneralVideoStudio,{key:mode.value,token:'fixture',initialProjectId:'qa-'+mode.value,apiBase:'http://127.0.0.1:18741',storageBase:'http://127.0.0.1:18741'})])}}).mount('#app')
+</script></body></html>

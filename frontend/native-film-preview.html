@@ -1,0 +1,20 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>AI整场制作 · 隔离预览</title><style>body{margin:0;background:#211e29;font:14px system-ui;color:#eee}#qa{padding:8px 28px;background:#33303c;font-size:12px}#fixture-output{white-space:pre-wrap;font-size:12px;padding:14px 28px;color:#d9d2e8}</style></head><body><div id="qa">隔离界面验证 · 使用本地替身，不调用真实账号或生成服务 <button id="qa-fail">下一条模拟失败</button></div><div id="app"></div><pre id="fixture-output"></pre><script type="module">
+import {createApp,ref,h} from 'vue'
+import NativeFilmStudio from '/src/components/NativeFilmStudio.vue'
+const state=ref(JSON.parse(localStorage.getItem('native-film-qa')||'null'))
+const requests=[]
+let task=state.value?.history?.length||0, failNext=false
+document.querySelector('#qa-fail').onclick=()=>{failNext=true}
+window.pywebview={api:{backend_request:async(method,path,token,body)=>{
+  requests.push({method,path,body});document.querySelector('#fixture-output').textContent=JSON.stringify(requests,null,2)
+  if(method==='POST')return {taskId:'qa-'+(++task),status:'queued'}
+  const failed=failNext;failNext=false
+  return {status:failed?'failed':'succeeded',video_url:'/file/qa-result-'+task+'/download',validation:{passed:!failed,actualDuration:2,reviewStatus:'needs_review',reason:failed?'隔离模拟：组片不完整':''}}
+},save_server_video_as:async()=>({saved:true})}}
+createApp({components:{NativeFilmStudio},setup(){return {state,models:[{id:'muse-fixture',modelName:'muse-video',name:'Muse 视频'}],
+assets:[{id:'actor',fileId:'actor-image',name:'学徒人物'},{id:'room',fileId:'room-image',name:'照相馆场景'}],
+clips:[{fileId:'clip-a',title:'木牌与进门'},{fileId:'clip-b',title:'柜台对话'}],
+script:'第一场：照相馆，雨天。学徒抱箱进门。\n学徒：“师父，箱子到了。”\n第二场：老人抬头回答：“放柜台上吧。”',
+fileUrl:()=>'/native-film-qa.mp4',save:async(value)=>{state.value=JSON.parse(JSON.stringify(value));localStorage.setItem('native-film-qa',JSON.stringify(value))}}},
+render(){return h(NativeFilmStudio,{token:'fixture',scopeKey:'qa-project',value:this.state,models:this.models,assets:this.assets,clips:this.clips,script:this.script,fileUrl:this.fileUrl,save:this.save})}}).mount('#app')
+</script></body></html>

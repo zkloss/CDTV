@@ -1,0 +1,41 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>分镜 AI 组片 · 隔离验证</title></head><body><div id="app"></div><script type="module">
+import {createApp,h} from 'vue'
+import Workspace from '/src/components/VideoCreationWorkspace.vue'
+import '/src/style.css'
+import '/src/workspaceLayout.css'
+const data=window.__assemblyFixture
+const copy=value=>JSON.parse(JSON.stringify(value))
+window.__assemblyQA={requests:[],next:'success',saveFails:false,pendingReply:null,task:0,taskModes:{}}
+const qa=window.__assemblyQA
+window.pywebview={api:{list_tasks:async()=>[],save_server_video_as:async()=>({saved:true}),backend_request:async(method,path,token,body)=>{
+ qa.requests.push({method,path,body:copy(body)})
+ if(path==='/project/list')return copy(data.projects)
+ if(path.includes('/models/public/list'))return path.includes('modelType=video')?[{id:'fixture-muse',modelName:'muse-video',name:'Muse 视频（隔离替身）'}]:[]
+ if(path==='/video-project/list')return copy(data.tasks)
+ if(path.startsWith('/video-project/')){
+  const task=data.tasks.find(t=>String(t.id)===decodeURIComponent(path.split('/')[2]))
+  if(!task)throw Error('隔离任务不存在')
+  if(method==='PUT'){
+   if(qa.saveFails)throw Error('隔离模拟：保存失败')
+   Object.assign(task,copy(body))
+  }
+  return copy(task)
+ }
+ if(path.startsWith('/project/')&&path.endsWith('/chapter/list'))return copy(data.chapters.filter(ch=>String(ch.projectId)===decodeURIComponent(path.split('/')[2])))
+ if(path.startsWith('/project/'))return copy(data.projects.find(p=>String(p.id)===decodeURIComponent(path.split('/')[2]))||{})
+ if(path==='/ai/video'&&method==='POST'){
+  const id='fixture-assembly-'+(++qa.task),mode=qa.next;qa.taskModes[id]=mode;qa.next='success'
+  if(mode==='unknown')throw Error('隔离模拟：提交回执中断')
+  if(mode==='deferred')return new Promise(resolve=>{qa.pendingReply=()=>resolve({taskId:id,status:'queued'})})
+  return {taskId:id,status:'queued'}
+ }
+ if(path.startsWith('/ai/video/')&&method==='GET'){
+  const id=decodeURIComponent(path.split('/')[3].split('?')[0]),mode=qa.taskModes[id]
+  if(mode==='unconfirmed')return {status:'failed',error:{code:'send_unconfirmed',message:'隔离模拟：上游发送回执未确认'}}
+  return {status:mode==='failed'?'failed':'succeeded',video_url:'/file/'+id+'/download',validation:{passed:mode!=='failed',actualDuration:2,reviewStatus:'needs_review',reason:mode==='failed'?'隔离模拟：组片不完整':''}}
+ }
+ throw Error('未提供隔离接口：'+path)
+}}}
+createApp({render:()=>h(Workspace,{token:'isolated-fixture',aiAssemblyEnabled:true,
+ apiBase:location.origin,storageBase:location.origin})}).mount('#app')
+</script></body></html>

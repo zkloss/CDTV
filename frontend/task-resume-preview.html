@@ -1,0 +1,10 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>任务恢复·隔离检查</title></head><body><div id="app"></div><script type="module">
+import {createApp,h} from 'vue'
+import Workspace from '/src/components/VideoCreationWorkspace.vue'
+import '/src/style.css'
+import '/src/workspaceLayout.css'
+window.pywebview={api:{list_tasks:async()=>[],backend_request:async(method,path,token,body)=>{
+ const r=await fetch('/__resume-qa',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({method,path,body})});const d=await r.json();if(!r.ok)throw Error(d.error);return d
+},review_video_audio:async()=>({status:'unavailable',summary:'隔离检查不调用音频模型'})}}
+createApp({render:()=>h(Workspace,{token:'isolated-fixture',apiBase:location.origin,storageBase:location.origin})}).mount('#app')
+</script></body></html>
